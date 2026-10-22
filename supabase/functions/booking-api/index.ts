@@ -9,7 +9,17 @@ const env = (key: string) => {
 };
 const has = (...keys: string[]) => keys.every((k) => Boolean(Deno.env.get(k)));
 
-const supabase = createClient(env("SUPABASE_URL"), env("SUPABASE_SERVICE_ROLE_KEY"), {
+// Projects on the new API keys expose sb_secret_* keys via SUPABASE_SECRET_KEYS; older ones via SUPABASE_SERVICE_ROLE_KEY.
+function serverKey(): string {
+  const legacy = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (legacy) return legacy;
+  try {
+    const keys = JSON.parse(Deno.env.get("SUPABASE_SECRET_KEYS") ?? "{}");
+    if (typeof keys.default === "string") return keys.default;
+  } catch { /* fall through */ }
+  throw new Error("Server configuration missing: SUPABASE_SERVICE_ROLE_KEY or SUPABASE_SECRET_KEYS");
+}
+const supabase = createClient(env("SUPABASE_URL"), serverKey(), {
   auth: { persistSession: false, autoRefreshToken: false },
 });
 

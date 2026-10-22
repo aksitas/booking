@@ -2,8 +2,8 @@
   "use strict";
   // Public client configuration only. Never put service-role keys or provider secrets here.
   const CONFIG = {
-    apiUrl: "https://YOUR_PROJECT_REF.supabase.co/functions/v1/booking-api",
-    publishableKey: "YOUR_SUPABASE_PUBLISHABLE_KEY",
+    apiUrl: "https://xjmvgrqtrunfpdkxqdst.supabase.co/functions/v1/booking-api",
+    publishableKey: "sb_publishable_6TWSur18V_L3iVQdO8Q8GQ_p2tDBadA",
     // Cloudflare Turnstile *site* key (public). Leave empty only if the backend sets ALLOW_UNVERIFIED_BOOKINGS=true.
     turnstileSiteKey: "",
     timezone: "Asia/Jakarta",
