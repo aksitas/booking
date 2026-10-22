@@ -6,7 +6,7 @@ This package upgrades the static prototype to a production-oriented booking flow
 - Google Calendar FreeBusy is checked before offering/confirming a slot.
 - PostgreSQL exclusion constraint prevents overlapping in-app bookings.
 - Google Calendar creates the event together with a Google Meet link (no separate video provider or credentials). Chosen over Zoom because Zoom Basic cuts meetings at 40 minutes.
-- Resend sends customer confirmation and an internal notification.
+- The Gmail API sends the customer confirmation and the internal notification from the calendar owner's Gmail account (no domain needed; Gmail allows roughly 500 messages/day).
 - Order: reserve (DB) → re-check Google → Google event + Meet link → internal email → customer email → `confirmed`. Any failure before the customer email deletes the created Google event (which retires its Meet link), tells the team to ignore the earlier notice, and marks the row `failed` (slot released).
 - Abuse protection: Cloudflare Turnstile (fails closed if not configured), per-IP and per-email rate limits in Postgres, Origin allow-list on `POST /book`.
 - Retries are idempotent: the browser sends an `Idempotency-Key`; a retried submission returns the original booking instead of a duplicate.
@@ -16,16 +16,15 @@ This package upgrades the static prototype to a production-oriented booking flow
 
 ## Architecture
 
-`GitHub Pages frontend → Supabase Edge Function → Supabase Postgres + Google Calendar/Meet + Resend`
+`GitHub Pages frontend → Supabase Edge Function → Supabase Postgres + Google Calendar/Meet + Gmail`
 
 Browser receives only Supabase publishable/anon key. Service-role key and all third-party secrets remain in Edge Function secrets.
 
 ## 1. Prerequisites
 - GitHub repository and GitHub Pages enabled.
 - Supabase project.
-- Google Cloud project with Google Calendar API enabled.
+- Google Cloud project with Google Calendar API and Gmail API enabled.
 - Google OAuth client and refresh token authorized for the calendar that should be checked/updated.
-- Resend account and a verified sender domain.
 - A real operational notification email for AKSITAS.
 
 ## 2. Create database schema
@@ -39,20 +38,20 @@ The table includes a Postgres exclusion constraint over `tstzrange(start_at,end_
 ## 3. Configure Google Calendar
 1. In Google Cloud Console, create/select a project and enable Google Calendar API.
 2. Configure OAuth consent screen and create an OAuth client.
-3. Generate a refresh token with Calendar event and free/busy access for the Google account that owns the booking calendar. Use an OAuth tool/flow appropriate for your organization; do not paste tokens into frontend files.
+3. Generate a refresh token with Calendar event, free/busy and Gmail send access for the Google account that owns the booking calendar. Use an OAuth tool/flow appropriate for your organization; do not paste tokens into frontend files.
 4. Ensure the authorized account can read FreeBusy and create/delete events on `GOOGLE_CALENDAR_ID`. `primary` works only for the authorized user's primary calendar.
 5. Set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN`, `GOOGLE_CALENDAR_ID`.
 
-OAuth scopes commonly required: `https://www.googleapis.com/auth/calendar.events` and `https://www.googleapis.com/auth/calendar.freebusy`. Use least privilege consistent with the operations.
+OAuth scopes required: `https://www.googleapis.com/auth/calendar.events`, `https://www.googleapis.com/auth/calendar.freebusy` and `https://www.googleapis.com/auth/gmail.send`. Use least privilege consistent with the operations.
 
 ## 4. Video calls (Google Meet)
 No setup needed: the `calendar.events` scope from step 3 lets the function attach a Meet link to each event (`conferenceDataVersion=1`). With a free Gmail host, 1-on-1 Meet calls run up to 24 hours. The customer is listed as a guest, so joining with the booked email skips the knock-to-join prompt.
 
-## 5. Configure Resend email
-1. Verify a sending domain in Resend.
-2. Create an API key.
-3. Set `RESEND_API_KEY`, `EMAIL_FROM` to a verified sender, and `BOOKING_NOTIFICATION_EMAIL` to the team inbox.
-4. Test delivery to both customer and team. The code reports success only if the provider API accepts both emails; provider acceptance does not guarantee inbox placement.
+## 5. Email (Gmail API)
+1. Enable **Gmail API** in the same Google Cloud project.
+2. Include `https://www.googleapis.com/auth/gmail.send` when generating the refresh token (step 3), so the token carries all three scopes: `calendar.events`, `calendar.freebusy`, `gmail.send`.
+3. Set `EMAIL_FROM` to the address of the Google account that authorized the token (Gmail only sends as that account or its verified aliases), optionally `EMAIL_FROM_NAME`, and `BOOKING_NOTIFICATION_EMAIL` to the team inbox (also used as Reply-To).
+4. Test delivery to both customer and team. The code reports success only if the Gmail API accepts both messages; acceptance does not guarantee inbox placement.
 
 ## 6. Deploy the Edge Function
 Install Supabase CLI, then from this directory:
@@ -127,4 +126,4 @@ Still required before launch: end-to-end tests with real provider accounts, admi
 - Google Calendar FreeBusy: https://developers.google.com/workspace/calendar/api/v3/reference/freebusy/query
 - Google Calendar API: https://developers.google.com/workspace/calendar/api/v3/reference
 - Calendar events with Meet (conferenceData): https://developers.google.com/workspace/calendar/api/guides/create-events#conferencing
-- Resend Email API: https://resend.com/features/email-api
+- Gmail API send: https://developers.google.com/workspace/gmail/api/guides/sending

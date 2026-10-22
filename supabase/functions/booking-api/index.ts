@@ -1,6 +1,6 @@
 // Supabase Edge Function entry point: wires real providers into the runtime-agnostic core.
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
-import { type BookingRow, createHandler, type Deps, type Interval, SERVICE, TZ } from "./booking.ts";
+import { type BookingRow, buildMimeMessage, createHandler, type Deps, type Interval, SERVICE, TZ } from "./booking.ts";
 
 // Trimmed: values pasted into the dashboard's multi-line secret field often carry a trailing newline.
 const env = (key: string) => {
@@ -139,17 +139,20 @@ const deps: Deps = {
     },
   },
   mail: {
+    // Sent through the Gmail API as the Google account that authorized the refresh token
+    // (needs the gmail.send scope). EMAIL_FROM must be that account's address.
     async send(m) {
-      const r = await fetch("https://api.resend.com/emails", {
+      const raw = buildMimeMessage({
+        from: env("EMAIL_FROM"), fromName: Deno.env.get("EMAIL_FROM_NAME")?.trim() || "AKSITAS Booking",
+        to: m.to, replyTo: env("BOOKING_NOTIFICATION_EMAIL"), subject: m.subject, html: m.html, text: m.text,
+      });
+      const r = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", {
         method: "POST",
-        headers: { Authorization: `Bearer ${env("RESEND_API_KEY")}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          from: env("EMAIL_FROM"), to: [m.to], reply_to: env("BOOKING_NOTIFICATION_EMAIL"),
-          subject: m.subject.replace(/[\r\n]+/g, " "), html: m.html, text: m.text,
-        }),
+        headers: { Authorization: `Bearer ${await googleAccessToken()}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ raw }),
       });
       const d = await r.json().catch(() => ({}));
-      if (!r.ok || !d.id) throw new Error(`Email provider rejected message (${r.status}): ${d.message ?? "unknown error"}`);
+      if (!r.ok || !d.id) throw new Error(`Gmail API rejected message (${r.status}): ${d?.error?.message ?? "unknown error"}`);
     },
   },
   async verifyHuman(token, ip) {
@@ -182,7 +185,7 @@ const deps: Deps = {
     humanCheckConfigured: has("TURNSTILE_SECRET_KEY"),
     configured: {
       google: has("GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GOOGLE_REFRESH_TOKEN", "GOOGLE_CALENDAR_ID"),
-      email: has("RESEND_API_KEY", "EMAIL_FROM", "BOOKING_NOTIFICATION_EMAIL"),
+      email: has("GOOGLE_REFRESH_TOKEN", "EMAIL_FROM", "BOOKING_NOTIFICATION_EMAIL"),
       botProtection: has("TURNSTILE_SECRET_KEY") || Deno.env.get("ALLOW_UNVERIFIED_BOOKINGS") === "true",
     },
   },

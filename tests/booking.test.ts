@@ -1,7 +1,7 @@
 // Run: npm test  (Node >= 22.18 strips TypeScript types natively)
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { availableSlots, type BookingRow, createBooking, createHandler, type Deps, PublicError, validateBooking } from "../supabase/functions/booking-api/booking.ts";
+import { availableSlots, type BookingRow, buildMimeMessage, createBooking, createHandler, type Deps, PublicError, validateBooking } from "../supabase/functions/booking-api/booking.ts";
 
 // Thursday 2026-10-22 17:00 WIB. Next bookable day: Friday 2026-10-23.
 const NOW = new Date("2026-10-22T10:00:00Z");
@@ -214,4 +214,22 @@ test("HTTP: unknown errors are generic and do not leak internals", async () => {
   const r = await createHandler(f.deps)(post(valid({ captchaToken: "ok-token" })));
   assert.equal(r.status, 500);
   assert.doesNotMatch(await r.text(), /hunter2/);
+});
+
+test("Gmail MIME message round-trips UTF-8 subject/body and blocks header injection", () => {
+  const raw = buildMimeMessage({
+    from: "aksitas@example.com", fromName: "AKSITAS Booking", to: "peserta@example.com", replyTo: "team@example.com",
+    subject: "Booking terkonfirmasi — Coaching\r\nBcc: attacker@example.com",
+    html: "<p>Halo Ñandú — sampai jumpa</p>", text: "Halo Ñandú — sampai jumpa",
+  });
+  assert.doesNotMatch(raw, /[+/=]/, "base64url without padding");
+  const msg = Buffer.from(raw, "base64url").toString("utf8");
+  const [head] = msg.split("\r\n\r\n");
+  assert.doesNotMatch(head, /^Bcc:/m, "no injected header line");
+  const subject = head.match(/^Subject: =\?UTF-8\?B\?(.+)\?=$/m)![1];
+  assert.equal(Buffer.from(subject, "base64").toString("utf8"), "Booking terkonfirmasi — Coaching Bcc: attacker@example.com");
+  assert.match(head, /^From: AKSITAS Booking <aksitas@example\.com>$/m);
+  assert.match(head, /^To: <peserta@example\.com>$/m);
+  const parts = [...msg.matchAll(/Content-Transfer-Encoding: base64\r\n\r\n([A-Za-z0-9+/=\r\n]+?)\r\n--/g)].map((p) => Buffer.from(p[1].replace(/\r\n/g, ""), "base64").toString("utf8"));
+  assert.deepEqual(parts, ["Halo Ñandú — sampai jumpa", "<p>Halo Ñandú — sampai jumpa</p>"]);
 });

@@ -159,6 +159,43 @@ export function validateBooking(body: any, now: Date) {
 }
 
 // ---------- Email content ----------
+function base64(s: string) {
+  const bytes = new TextEncoder().encode(s);
+  let bin = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(bin);
+}
+const headerSafe = (s: string) => s.replace(/[\r\n]+/g, " ").trim();
+const encodeWord = (s: string) => (/^[\x20-\x7e]*$/.test(s) ? s : `=?UTF-8?B?${base64(s)}?=`);
+
+/** RFC 2822 message (text + HTML alternatives), base64url-encoded as the Gmail API `raw` field expects. */
+export function buildMimeMessage(m: { from: string; fromName: string; to: string; replyTo?: string; subject: string; html: string; text: string }) {
+  const boundary = `aksitas-${crypto.randomUUID()}`;
+  const body = (s: string) => base64(s).replace(/.{76}/g, "$&\r\n");
+  const lines = [
+    `From: ${encodeWord(headerSafe(m.fromName))} <${headerSafe(m.from)}>`,
+    `To: <${headerSafe(m.to)}>`,
+    ...(m.replyTo ? [`Reply-To: <${headerSafe(m.replyTo)}>`] : []),
+    `Subject: ${encodeWord(headerSafe(m.subject))}`,
+    "MIME-Version: 1.0",
+    `Content-Type: multipart/alternative; boundary="${boundary}"`,
+    "",
+    `--${boundary}`,
+    "Content-Type: text/plain; charset=UTF-8",
+    "Content-Transfer-Encoding: base64",
+    "",
+    body(m.text),
+    `--${boundary}`,
+    "Content-Type: text/html; charset=UTF-8",
+    "Content-Transfer-Encoding: base64",
+    "",
+    body(m.html),
+    `--${boundary}--`,
+    "",
+  ];
+  return base64(lines.join("\r\n")).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
 export function escapeHtml(s: string) {
   return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
 }
