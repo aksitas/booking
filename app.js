@@ -5,7 +5,7 @@
     apiUrl: "https://xjmvgrqtrunfpdkxqdst.supabase.co/functions/v1/booking-api",
     publishableKey: "sb_publishable_6TWSur18V_L3iVQdO8Q8GQ_p2tDBadA",
     // Cloudflare Turnstile *site* key (public). Leave empty only if the backend sets ALLOW_UNVERIFIED_BOOKINGS=true.
-    turnstileSiteKey: "",
+    turnstileSiteKey: "0x4AAAAAAFg4SoESv94pLmD2",
     timezone: "Asia/Jakarta",
   };
   const SERVICES = {
