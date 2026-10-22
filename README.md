@@ -32,6 +32,7 @@ Apply the migrations in order (`supabase db push`, or paste each into SQL Editor
 1. `supabase/migrations/202610220001_booking_schema.sql` (skip if already applied)
 2. `supabase/migrations/202610220002_booking_hardening.sql` (additive, safe to re-run; adds rate limiting, stale-hold expiry, reconciliation flags, revokes anon/authenticated grants)
 3. `supabase/migrations/202610220003_google_meet.sql` (adds `meeting_url`)
+4. `supabase/migrations/202610220004_schedule_stale_cleanup.sql` (enables `pg_cron` and runs `expire_stale_bookings()` every 5 minutes)
 
 The table includes a Postgres exclusion constraint over `tstzrange(start_at,end_at,'[)')`; two concurrent reservations cannot both occupy overlapping times while their status is `processing` or `confirmed`. RLS is enabled without public policies. The Edge Function uses the server-only service role.
 
@@ -118,7 +119,7 @@ Example request:
 10. Configure backups, monitoring, rate limiting, and admin-only cancellation/reschedule workflows before public scale.
 
 ## Current scope and known hardening work
-Still required before launch: end-to-end tests with real provider accounts, admin cancellation/reschedule, a scheduled job (pg_cron) calling `expire_stale_bookings()` plus alerting on `needs_reconciliation`, and review of privacy/consent. A database row is reserved before external APIs are called; failures are marked `failed`, freeing the exclusion constraint. Supabase Edge Function runtime timeouts and provider outages must be tested. Use a durable job/queue orchestration if you need stronger recovery guarantees.
+Still required before launch: end-to-end tests with real provider accounts, admin cancellation/reschedule, alerting on `needs_reconciliation` (the pg_cron cleanup job is in migration 0004), and review of privacy/consent. A database row is reserved before external APIs are called; failures are marked `failed`, freeing the exclusion constraint. Supabase Edge Function runtime timeouts and provider outages must be tested. Use a durable job/queue orchestration if you need stronger recovery guarantees.
 
 ## Useful official documentation
 - Supabase Edge Functions deploy: https://supabase.com/docs/guides/functions/deploy
