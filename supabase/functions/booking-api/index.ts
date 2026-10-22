@@ -2,12 +2,13 @@
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
 import { type BookingRow, createHandler, type Deps, type Interval, localParts, SERVICE, TZ } from "./booking.ts";
 
+// Trimmed: values pasted into the dashboard's multi-line secret field often carry a trailing newline.
 const env = (key: string) => {
-  const v = Deno.env.get(key);
+  const v = Deno.env.get(key)?.trim();
   if (!v) throw new Error(`Server configuration missing: ${key}`);
   return v;
 };
-const has = (...keys: string[]) => keys.every((k) => Boolean(Deno.env.get(k)));
+const has = (...keys: string[]) => keys.every((k) => Boolean(Deno.env.get(k)?.trim()));
 
 // Projects on the new API keys expose sb_secret_* keys via SUPABASE_SECRET_KEYS; older ones via SUPABASE_SERVICE_ROLE_KEY.
 function serverKey(): string {
