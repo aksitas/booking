@@ -12,11 +12,11 @@ const valid = (o: Record<string, unknown> = {}) => ({
   company: "Example", role: "Founder", agenda: "Diskusi prioritas", ...o,
 });
 
-type Fail = Partial<Record<"zoom" | "google" | "adminMail" | "customerMail" | "busy" | "finalUpdate", boolean>>;
+type Fail = Partial<Record<"google" | "adminMail" | "customerMail" | "busy" | "finalUpdate", boolean>>;
 function fakeDeps(fail: Fail = {}, opts: { busy?: { start: string; end: string }[] } = {}) {
   const rows: (BookingRow & { idempotency_key: string; [k: string]: unknown })[] = [];
   const calls: string[] = [];
-  const events = new Set<string>(), meetings = new Set<string>();
+  const events = new Set<string>();
   const sent: { to: string; subject: string }[] = [];
   let n = 0;
   const active = (r: BookingRow) => r.status === "processing" || r.status === "confirmed";
@@ -45,12 +45,13 @@ function fakeDeps(fail: Fail = {}, opts: { busy?: { start: string; end: string }
     },
     calendar: {
       async busy() { calls.push("busy"); if (fail.busy) throw new Error("google down"); return opts.busy ?? []; },
-      async createEvent() { calls.push("google"); if (fail.google) throw new Error("google 500"); const id = `g${++n}`; events.add(id); return id; },
+      async createEvent() {
+        calls.push("google");
+        if (fail.google) throw new Error("google 500");
+        const id = `g${++n}`; events.add(id);
+        return { id, meetUrl: `https://meet.google.com/abc-defg-${id}` };
+      },
       async deleteEvent(id) { calls.push("deleteGoogle"); events.delete(id); },
-    },
-    zoom: {
-      async createMeeting() { calls.push("zoom"); if (fail.zoom) throw new Error("zoom 401"); const id = `z${++n}`; meetings.add(id); return { id, joinUrl: `https://zoom.us/j/${id}` }; },
-      async deleteMeeting(id) { calls.push("deleteZoom"); meetings.delete(id); },
     },
     mail: {
       async send(m) {
@@ -68,23 +69,23 @@ function fakeDeps(fail: Fail = {}, opts: { busy?: { start: string; end: string }
       humanCheckConfigured: true, configured: {},
     },
   };
-  return { deps, rows, calls, events, meetings, sent };
+  return { deps, rows, calls, events, sent };
 }
 const KEY = "0123456789abcdef0123";
 
-test("valid booking confirms with Zoom, Google event and both emails", async () => {
+test("valid booking confirms with Google event + Meet link and both emails", async () => {
   const f = fakeDeps();
   const res = await createBooking(f.deps, valid(), KEY);
   assert.equal(res.status, 201);
   assert.equal(res.body.status, "confirmed");
-  assert.match(res.body.joinUrl!, /^https:\/\/zoom\.us\/j\//);
+  assert.match(res.body.joinUrl!, /^https:\/\/meet\.google\.com\//);
   assert.equal(f.rows.length, 1);
   const row = f.rows[0];
   assert.equal(row.status, "confirmed");
   assert.equal(row.email, "test@example.com");
   assert.equal(row.end_at, "2026-10-23T02:45:00.000Z"); // coaching = 45 min
-  assert.ok(row.zoom_meeting_id && row.google_event_id && row.confirmation_sent_at && row.admin_notified_at);
-  assert.deepEqual(f.calls, ["busy", "zoom", "google", "adminMail", "customerMail"]);
+  assert.ok(row.meeting_url && row.google_event_id && row.confirmation_sent_at && row.admin_notified_at);
+  assert.deepEqual(f.calls, ["busy", "google", "adminMail", "customerMail"]);
   assert.deepEqual(f.sent.map((s) => s.to), ["team@aksitas.test", "test@example.com"]);
 });
 
@@ -94,13 +95,12 @@ test("consulting is 60 minutes", async () => {
   assert.equal(f.rows[0].end_at, "2026-10-23T03:00:00.000Z");
 });
 
-for (const step of ["zoom", "google", "adminMail", "customerMail"] as const) {
+for (const step of ["google", "adminMail", "customerMail"] as const) {
   test(`failure at ${step} never reports success and cleans up`, async () => {
     const f = fakeDeps({ [step]: true });
     await assert.rejects(createBooking(f.deps, valid(), KEY), (e: PublicError) => e.status === 502);
     assert.equal(f.rows[0].status, "failed");
-    assert.equal(f.events.size, 0, "no orphan Google event");
-    assert.equal(f.meetings.size, 0, "no orphan Zoom meeting");
+    assert.equal(f.events.size, 0, "no orphan Google event / Meet link");
     assert.ok(!f.sent.some((s) => s.to === "test@example.com"), "customer never told it is confirmed");
     if (step === "customerMail") assert.ok(f.sent.some((s) => s.subject.startsWith("DIBATALKAN")), "team told to ignore earlier notice");
   });
@@ -110,7 +110,7 @@ test("slot that became busy in Google between display and submit is rejected (40
   const f = fakeDeps({}, { busy: [{ start: "2026-10-23T02:30:00Z", end: "2026-10-23T03:00:00Z" }] });
   await assert.rejects(createBooking(f.deps, valid(), KEY), (e: PublicError) => e.status === 409 && e.code === "slot_taken");
   assert.equal(f.rows[0].status, "failed");
-  assert.ok(!f.calls.includes("zoom"));
+  assert.ok(!f.calls.includes("google"));
 });
 
 test("two concurrent overlapping attempts: exactly one confirms", async () => {
@@ -124,7 +124,7 @@ test("two concurrent overlapping attempts: exactly one confirms", async () => {
   assert.equal(ok.length, 1);
   assert.equal(conflicts.length, 1);
   assert.equal(f.rows.filter((r) => r.status === "confirmed").length, 1);
-  assert.equal(f.meetings.size, 1);
+  assert.equal(f.events.size, 1);
 });
 
 test("retrying the same submission returns the original booking, no duplicates", async () => {
@@ -133,7 +133,7 @@ test("retrying the same submission returns the original booking, no duplicates",
   const again = await createBooking(f.deps, valid(), KEY);
   assert.equal(again.status, 200);
   assert.equal(again.body.bookingId, first.body.bookingId);
-  assert.equal(f.meetings.size, 1);
+  assert.equal(f.events.size, 1);
 });
 
 test("final DB update failure after customer email keeps slot held and still returns details", async () => {
@@ -142,7 +142,7 @@ test("final DB update failure after customer email keeps slot held and still ret
   assert.equal(res.status, 201);
   assert.equal(f.rows[0].status, "processing"); // still blocks the slot; expiry flags it for reconciliation
   assert.ok(f.rows[0].admin_notified_at);
-  assert.equal(f.meetings.size, 1);
+  assert.equal(f.events.size, 1);
 });
 
 test("server-side validation rejects bad input", () => {

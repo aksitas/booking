@@ -125,7 +125,7 @@
     try{
       const result=await api("/book",{method:"POST",body:JSON.stringify(data),headers:{"Idempotency-Key":state.idemKey}});
       state.idemKey=null;state.lastBooking=result;
-      $("successText").textContent=`Sesi ${SERVICES[result.service||state.service].title} pada ${formatDate(state.date)}, pukul ${result.localTime||state.selectedSlot?.label||""} telah terkonfirmasi. Detail dan tautan Zoom telah dikirim ke ${data.email}. ID booking: ${result.bookingId}.`;
+      $("successText").textContent=`Sesi ${SERVICES[result.service||state.service].title} pada ${formatDate(state.date)}, pukul ${result.localTime||state.selectedSlot?.label||""} telah terkonfirmasi. Detail dan tautan Google Meet telah dikirim ke ${data.email}. ID booking: ${result.bookingId}.`;
       $("successModal").hidden=false;document.body.classList.add("no-scroll");$("closeModal").focus();
       $("summaryTime").textContent=result.localTime||state.selectedSlot?.label||"Terkonfirmasi";
     }catch(error){
@@ -141,7 +141,7 @@
     const svc=SERVICES[b.service]||SERVICES[state.service],start=new Date(b.startAt),end=b.endAt?new Date(b.endAt):new Date(start.getTime()+svc.duration*60000);
     const stamp=d=>`${d.getUTCFullYear()}${pad(d.getUTCMonth()+1)}${pad(d.getUTCDate())}T${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}00Z`;
     const esc=v=>String(v||"").replace(/\\/g,"\\\\").replace(/,/g,"\\,").replace(/;/g,"\\;").replace(/\n/g,"\\n");
-    const lines=["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//AKSITAS//Booking//ID","CALSCALE:GREGORIAN","BEGIN:VEVENT",`UID:${esc(b.bookingId)}@aksitas`,`DTSTAMP:${stamp(new Date())}`,`DTSTART:${stamp(start)}`,`DTEND:${stamp(end)}`,`SUMMARY:${esc(svc.title+" — AKSITAS")}`,`DESCRIPTION:${esc("Booking terkonfirmasi. Zoom: "+(b.joinUrl||"Periksa email konfirmasi"))}`,`LOCATION:${esc(b.joinUrl||"Online via Zoom")}`,"END:VEVENT","END:VCALENDAR"];
+    const lines=["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//AKSITAS//Booking//ID","CALSCALE:GREGORIAN","BEGIN:VEVENT",`UID:${esc(b.bookingId)}@aksitas`,`DTSTAMP:${stamp(new Date())}`,`DTSTART:${stamp(start)}`,`DTEND:${stamp(end)}`,`SUMMARY:${esc(svc.title+" — AKSITAS")}`,`DESCRIPTION:${esc("Booking terkonfirmasi. Google Meet: "+(b.joinUrl||"Periksa email konfirmasi"))}`,`LOCATION:${esc(b.joinUrl||"Online via Google Meet")}`,"END:VEVENT","END:VCALENDAR"];
     const url=URL.createObjectURL(new Blob([lines.join("\r\n")],{type:"text/calendar;charset=utf-8"})),a=document.createElement("a");
     a.href=url;a.download=`aksitas-booking-${b.bookingId}.ics`;a.click();URL.revokeObjectURL(url);
   });

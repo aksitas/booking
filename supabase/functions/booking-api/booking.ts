@@ -26,9 +26,8 @@ export type BookingRow = {
   agenda: string;
   start_at: string;
   end_at: string;
-  zoom_meeting_id?: string | null;
-  zoom_join_url?: string | null;
   google_event_id?: string | null;
+  meeting_url?: string | null;
 };
 export type NewBooking = Omit<BookingRow, "id" | "status"> & { idempotency_key: string };
 
@@ -44,12 +43,9 @@ export interface Deps {
   db: Db;
   calendar: {
     busy(start: Date, end: Date): Promise<Interval[]>;
-    createEvent(b: BookingRow): Promise<string>;
+    // Creates the calendar event together with its Google Meet link.
+    createEvent(b: BookingRow): Promise<{ id: string; meetUrl: string }>;
     deleteEvent(id: string): Promise<void>;
-  };
-  zoom: {
-    createMeeting(b: BookingRow): Promise<{ id: string; joinUrl: string }>;
-    deleteMeeting(id: string): Promise<void>;
   };
   mail: { send(m: { to: string; subject: string; html: string; text: string }): Promise<void> };
   verifyHuman(token: string, ip: string): Promise<boolean>;
@@ -173,14 +169,14 @@ function emails(b: BookingRow, joinUrl: string) {
     customer: {
       to: b.email,
       subject: `Booking terkonfirmasi — AKSITAS ${svc.title}`,
-      html: `<p>Halo ${h(b.full_name)},</p><p>Booking ${svc.title} Anda dengan AKSITAS telah <strong>terkonfirmasi</strong>.</p><p><strong>Waktu:</strong> ${h(when)}<br><strong>Durasi:</strong> ${svc.duration} menit<br><strong>Agenda:</strong> ${h(b.agenda)}</p><p><a href="${h(joinUrl)}">Gabung Zoom meeting</a><br>${h(joinUrl)}</p><p>ID booking: ${h(b.id)}<br>Jika perlu mengubah jadwal, balas email ini.</p><p>Salam,<br>Tim AKSITAS</p>`,
-      text: `Halo ${b.full_name},\n\nBooking ${svc.title} Anda dengan AKSITAS telah terkonfirmasi.\nWaktu: ${when}\nDurasi: ${svc.duration} menit\nAgenda: ${b.agenda}\nZoom: ${joinUrl}\nID booking: ${b.id}\n\nJika perlu mengubah jadwal, balas email ini.\n\nSalam,\nTim AKSITAS`,
+      html: `<p>Halo ${h(b.full_name)},</p><p>Booking ${svc.title} Anda dengan AKSITAS telah <strong>terkonfirmasi</strong>.</p><p><strong>Waktu:</strong> ${h(when)}<br><strong>Durasi:</strong> ${svc.duration} menit<br><strong>Agenda:</strong> ${h(b.agenda)}</p><p><a href="${h(joinUrl)}">Gabung Google Meet</a><br>${h(joinUrl)}</p><p>Gunakan email ini saat bergabung agar langsung masuk tanpa menunggu persetujuan.</p><p>ID booking: ${h(b.id)}<br>Jika perlu mengubah jadwal, balas email ini.</p><p>Salam,<br>Tim AKSITAS</p>`,
+      text: `Halo ${b.full_name},\n\nBooking ${svc.title} Anda dengan AKSITAS telah terkonfirmasi.\nWaktu: ${when}\nDurasi: ${svc.duration} menit\nAgenda: ${b.agenda}\nGoogle Meet: ${joinUrl}\nID booking: ${b.id}\n\nJika perlu mengubah jadwal, balas email ini.\n\nSalam,\nTim AKSITAS`,
     },
     admin: (to: string) => ({
       to,
       subject: `Booking baru — ${svc.title} — ${b.full_name}`,
-      html: `<p>Booking baru (konfirmasi ke peserta sedang dikirim).</p><p><strong>${h(b.full_name)}</strong> (${h(b.email)})<br>${h(b.company || "-")} · ${h(b.role || "-")}<br>${h(when)} · ${svc.duration} menit<br>Zoom: <a href="${h(joinUrl)}">${h(joinUrl)}</a></p><p>Agenda: ${h(b.agenda)}</p><p>ID: ${h(b.id)}</p>`,
-      text: `Booking baru\n${b.full_name} <${b.email}>\n${b.company || "-"} · ${b.role || "-"}\n${when} · ${svc.duration} menit\nZoom: ${joinUrl}\nAgenda: ${b.agenda}\nID: ${b.id}`,
+      html: `<p>Booking baru (konfirmasi ke peserta sedang dikirim).</p><p><strong>${h(b.full_name)}</strong> (${h(b.email)})<br>${h(b.company || "-")} · ${h(b.role || "-")}<br>${h(when)} · ${svc.duration} menit<br>Google Meet: <a href="${h(joinUrl)}">${h(joinUrl)}</a></p><p>Agenda: ${h(b.agenda)}</p><p>ID: ${h(b.id)}</p>`,
+      text: `Booking baru\n${b.full_name} <${b.email}>\n${b.company || "-"} · ${b.role || "-"}\n${when} · ${svc.duration} menit\nGoogle Meet: ${joinUrl}\nAgenda: ${b.agenda}\nID: ${b.id}`,
     }),
     adminCancelled: (to: string, reason: string) => ({
       to,
@@ -194,11 +190,11 @@ function emails(b: BookingRow, joinUrl: string) {
 // ---------- Booking orchestration ----------
 const publicRow = (b: BookingRow) => ({
   bookingId: b.id, status: b.status, service: b.service, startAt: b.start_at, endAt: b.end_at,
-  localTime: fmtTime(new Date(b.start_at)), joinUrl: b.zoom_join_url ?? undefined,
+  localTime: fmtTime(new Date(b.start_at)), joinUrl: b.meeting_url ?? undefined,
 });
 
 /**
- * Reserve → recheck calendar → Zoom → Google event → internal notice → customer email → confirm.
+ * Reserve → recheck calendar → Google event with Meet link → internal notice → customer email → confirm.
  * Any failure before the customer email compensates every created resource and marks the row
  * 'failed', which releases the slot. The row only becomes 'confirmed' after all steps succeed.
  */
@@ -225,22 +221,18 @@ export async function createBooking(deps: Deps, body: unknown, idempotencyKey: s
   }
 
   const b = ins.row;
-  let zoomId = "", googleId = "", adminNotified = false;
+  let googleId = "", adminNotified = false;
   try {
     const busy = await deps.calendar.busy(input.start, input.end);
     if (busy.some((x) => overlaps(x, input.start, input.end)))
       throw new PublicError(409, "Jadwal ini baru saja menjadi tidak tersedia. Silakan pilih slot lain.", "slot_taken");
 
-    const zoom = await deps.zoom.createMeeting(b);
-    zoomId = zoom.id;
-    b.zoom_meeting_id = zoom.id; b.zoom_join_url = zoom.joinUrl;
-    if (!(await deps.db.update(b.id, { zoom_meeting_id: zoom.id, zoom_join_url: zoom.joinUrl }))) throw new Error("persist zoom ids failed");
+    const event = await deps.calendar.createEvent(b);
+    googleId = event.id;
+    b.google_event_id = event.id; b.meeting_url = event.meetUrl;
+    if (!(await deps.db.update(b.id, { google_event_id: event.id, meeting_url: event.meetUrl }))) throw new Error("persist event ids failed");
 
-    googleId = await deps.calendar.createEvent(b);
-    b.google_event_id = googleId;
-    if (!(await deps.db.update(b.id, { google_event_id: googleId }))) throw new Error("persist google id failed");
-
-    const mail = emails(b, zoom.joinUrl);
+    const mail = emails(b, event.meetUrl);
     await deps.mail.send(mail.admin(deps.config.notificationEmail));
     adminNotified = true;
     if (!(await deps.db.update(b.id, { admin_notified_at: deps.now().toISOString() }))) throw new Error("persist admin notice failed");
@@ -249,10 +241,10 @@ export async function createBooking(deps: Deps, body: unknown, idempotencyKey: s
   } catch (error) {
     deps.log("booking integration failure", error);
     const reason = error instanceof PublicError ? error.code : String(error).slice(0, 500);
+    // Deleting the event also retires its Meet link.
     if (googleId) await deps.calendar.deleteEvent(googleId).catch((e) => deps.log("compensate google failed", e));
-    if (zoomId) await deps.zoom.deleteMeeting(zoomId).catch((e) => deps.log("compensate zoom failed", e));
     if (adminNotified) {
-      await deps.mail.send(emails(b, b.zoom_join_url ?? "-").adminCancelled(deps.config.notificationEmail, reason))
+      await deps.mail.send(emails(b, b.meeting_url ?? "-").adminCancelled(deps.config.notificationEmail, reason))
         .catch((e) => deps.log("admin cancel notice failed", e));
     }
     const released = await deps.db.update(b.id, { status: "failed", failure_reason: reason, needs_reconciliation: false });

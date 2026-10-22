@@ -5,9 +5,9 @@ This package upgrades the static prototype to a production-oriented booking flow
 - Supabase Edge Function exposes live slots and booking endpoints.
 - Google Calendar FreeBusy is checked before offering/confirming a slot.
 - PostgreSQL exclusion constraint prevents overlapping in-app bookings.
-- Zoom Server-to-Server OAuth creates the meeting.
+- Google Calendar creates the event together with a Google Meet link (no separate video provider or credentials). Chosen over Zoom because Zoom Basic cuts meetings at 40 minutes.
 - Resend sends customer confirmation and an internal notification.
-- Order: reserve (DB) → re-check Google → Zoom → Google event → internal email → customer email → `confirmed`. Any failure before the customer email deletes the created Zoom meeting / Google event, tells the team to ignore the earlier notice, and marks the row `failed` (slot released).
+- Order: reserve (DB) → re-check Google → Google event + Meet link → internal email → customer email → `confirmed`. Any failure before the customer email deletes the created Google event (which retires its Meet link), tells the team to ignore the earlier notice, and marks the row `failed` (slot released).
 - Abuse protection: Cloudflare Turnstile (fails closed if not configured), per-IP and per-email rate limits in Postgres, Origin allow-list on `POST /book`.
 - Retries are idempotent: the browser sends an `Idempotency-Key`; a retried submission returns the original booking instead of a duplicate.
 - Stale `processing` holds (crashed/timed-out runs) are released after 10 minutes unless the customer may already have been emailed; those are kept and flagged `needs_reconciliation`.
@@ -16,7 +16,7 @@ This package upgrades the static prototype to a production-oriented booking flow
 
 ## Architecture
 
-`GitHub Pages frontend → Supabase Edge Function → Supabase Postgres + Google Calendar + Zoom + Resend`
+`GitHub Pages frontend → Supabase Edge Function → Supabase Postgres + Google Calendar/Meet + Resend`
 
 Browser receives only Supabase publishable/anon key. Service-role key and all third-party secrets remain in Edge Function secrets.
 
@@ -25,14 +25,14 @@ Browser receives only Supabase publishable/anon key. Service-role key and all th
 - Supabase project.
 - Google Cloud project with Google Calendar API enabled.
 - Google OAuth client and refresh token authorized for the calendar that should be checked/updated.
-- Zoom account with Server-to-Server OAuth app and meeting scopes.
 - Resend account and a verified sender domain.
 - A real operational notification email for AKSITAS.
 
 ## 2. Create database schema
-Apply both migrations in order (`supabase db push`, or paste each into SQL Editor):
+Apply the migrations in order (`supabase db push`, or paste each into SQL Editor):
 1. `supabase/migrations/202610220001_booking_schema.sql` (skip if already applied)
 2. `supabase/migrations/202610220002_booking_hardening.sql` (additive, safe to re-run; adds rate limiting, stale-hold expiry, reconciliation flags, revokes anon/authenticated grants)
+3. `supabase/migrations/202610220003_google_meet.sql` (adds `meeting_url`)
 
 The table includes a Postgres exclusion constraint over `tstzrange(start_at,end_at,'[)')`; two concurrent reservations cannot both occupy overlapping times while their status is `processing` or `confirmed`. RLS is enabled without public policies. The Edge Function uses the server-only service role.
 
@@ -45,13 +45,8 @@ The table includes a Postgres exclusion constraint over `tstzrange(start_at,end_
 
 OAuth scopes commonly required: `https://www.googleapis.com/auth/calendar.events` and `https://www.googleapis.com/auth/calendar.freebusy`. Use least privilege consistent with the operations.
 
-## 4. Configure Zoom
-1. Create a Zoom Server-to-Server OAuth app in Zoom App Marketplace.
-2. Activate the app and grant the scopes required to create, read, and delete meetings (for example meeting write/delete scopes supported by the account).
-3. Set `ZOOM_ACCOUNT_ID`, `ZOOM_CLIENT_ID`, `ZOOM_CLIENT_SECRET`.
-4. Set `ZOOM_HOST_USER_ID` to the Zoom host user ID or email permitted by the app. `me` may not be accepted by all Zoom endpoints/account setups; test the actual host identifier.
-
-Zoom meeting policy (waiting room, no join-before-host) is set in code. Review these defaults against AKSITAS policy.
+## 4. Video calls (Google Meet)
+No setup needed: the `calendar.events` scope from step 3 lets the function attach a Meet link to each event (`conferenceDataVersion=1`). With a free Gmail host, 1-on-1 Meet calls run up to 24 hours. The customer is listed as a guest, so joining with the booked email skips the knock-to-join prompt.
 
 ## 5. Configure Resend email
 1. Verify a sending domain in Resend.
@@ -88,12 +83,12 @@ Push `index.html`, `styles.css`, `app.js` to the GitHub Pages source root. If us
 Requires Node ≥ 22.18 (no npm dependencies).
 - `npm test` — unit + HTTP tests of the booking core with fake providers (happy path, every failure path, concurrency, idempotency, validation, bot/rate-limit/origin checks).
 - `npm run test:db` — creates a throwaway local PostgreSQL cluster (set `PG_BIN` to the Postgres `bin` folder), applies both migrations twice, races 20 overlapping inserts, checks stale-hold expiry, rate limiter and anon permissions. Never point it at a real database.
-- `npm run dev` — serves the site at http://localhost:8787 with the real handler and fake Google/Zoom/email. Add `?fail=zoom|google|email` to simulate an outage on the next booking.
+- `npm run dev` — serves the site at http://localhost:8787 with the real handler and fake Google/email. Add `?fail=google|email` to simulate an outage on the next booking.
 
 ## API
 - `GET /health` — readiness/configuration flags only, no secret values.
 - `GET /slots?date=YYYY-MM-DD&service=coaching|consulting` — checks Google Calendar FreeBusy and overlapping DB bookings.
-- `POST /book` — validates request, reserves DB interval, re-checks calendar, creates Zoom meeting + Google Calendar event, sends email and marks booking confirmed.
+- `POST /book` — validates request, reserves DB interval, re-checks calendar, creates the Google Calendar event with a Meet link, sends email and marks booking confirmed.
 
 Example request:
 ```json
@@ -112,9 +107,9 @@ Example request:
 `startAt` must be an ISO timestamp matching one of the offered slot starts. Availability uses Asia/Jakarta, weekdays, starts 09:00, 10:00, 11:00, 13:00, 14:00, 15:00, 16:00 WIB. Coaching is 45 minutes; consulting is 60 minutes. Change the schedule in `businessHoursFor()` and align front-end calendar limits if needed.
 
 ## Verification checklist — do this before announcing launch
-1. Open `/health`; confirm `google`, `zoom`, and `email` all report `true`. This means secrets are present, not that provider credentials work.
+1. Open `/health`; confirm `google`, `email` and `botProtection` all report `true`. This means secrets are present, not that provider credentials work.
 2. Request a slot for a future weekday. Confirm the returned slots match the intended timezone and live calendar.
-3. Book a test slot with an internal test email. Confirm a `confirmed` row, a Google Calendar event, a Zoom meeting and both emails.
+3. Book a test slot with an internal test email. Confirm a `confirmed` row, a Google Calendar event with a working Meet link and both emails.
 4. Book the same slot from a second browser/session; expect HTTP 409 and no duplicate meeting.
 5. Test a slot already occupied directly in Google Calendar; it must not be offered and the booking must be rejected if it becomes busy between display and submit.
 6. Test invalid emails, past dates, weekends, invalid service, malformed timestamps, long inputs and repeated submissions.
@@ -131,5 +126,5 @@ Still required before launch: end-to-end tests with real provider accounts, admi
 - Supabase Edge Function secrets: https://supabase.com/docs/guides/functions/secrets
 - Google Calendar FreeBusy: https://developers.google.com/workspace/calendar/api/v3/reference/freebusy/query
 - Google Calendar API: https://developers.google.com/workspace/calendar/api/v3/reference
-- Zoom Server-to-Server OAuth: https://godevelopers.zoom.us/docs/internal-apps/
+- Calendar events with Meet (conferenceData): https://developers.google.com/workspace/calendar/api/guides/create-events#conferencing
 - Resend Email API: https://resend.com/features/email-api

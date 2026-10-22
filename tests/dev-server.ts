@@ -1,6 +1,6 @@
 // Local preview: serves the static site and the REAL booking handler wired to in-memory fakes
-// (no Google/Zoom/email calls). Run: npm run dev  → http://localhost:8787
-// Add ?fail=zoom|google|email to the page URL to simulate a provider outage on the next booking.
+// (no Google/email calls). Run: npm run dev  → http://localhost:8787
+// Add ?fail=google|email to the page URL to simulate a provider outage on the next booking.
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { extname, join } from "node:path";
@@ -33,12 +33,8 @@ const deps: Deps = {
   },
   calendar: {
     async busy() { return []; },
-    async createEvent() { maybeFail("google"); return `evt${++n}`; },
+    async createEvent() { maybeFail("google"); const id = `evt${++n}`; return { id, meetUrl: `https://meet.google.com/dev-test-${n}` }; },
     async deleteEvent(id) { console.log(`[fake google] deleted ${id}`); },
-  },
-  zoom: {
-    async createMeeting() { maybeFail("zoom"); const id = String(80000000000 + ++n); return { id, joinUrl: `https://zoom.us/j/${id}` }; },
-    async deleteMeeting(id) { console.log(`[fake zoom] deleted ${id}`); },
   },
   mail: { async send(m) { maybeFail("email"); console.log(`[fake email] to=${m.to} subject=${m.subject}`); } },
   verifyHuman: async () => true,

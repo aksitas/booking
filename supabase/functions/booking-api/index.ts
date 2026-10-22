@@ -1,6 +1,6 @@
 // Supabase Edge Function entry point: wires real providers into the runtime-agnostic core.
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
-import { type BookingRow, createHandler, type Deps, type Interval, localParts, SERVICE, TZ } from "./booking.ts";
+import { type BookingRow, createHandler, type Deps, type Interval, SERVICE, TZ } from "./booking.ts";
 
 // Trimmed: values pasted into the dashboard's multi-line secret field often carry a trailing newline.
 const env = (key: string) => {
@@ -53,22 +53,11 @@ async function google(path: string, init: RequestInit = {}) {
 }
 const calendarId = () => env("GOOGLE_CALENDAR_ID");
 
-// ---------- Zoom ----------
-let zoomToken: { value: string; exp: number } | null = null;
-async function zoomAccessToken(): Promise<string> {
-  if (zoomToken && zoomToken.exp > Date.now() + 60_000) return zoomToken.value;
-  const r = await fetch("https://zoom.us/oauth/token", {
-    method: "POST",
-    headers: {
-      Authorization: `Basic ${btoa(`${env("ZOOM_CLIENT_ID")}:${env("ZOOM_CLIENT_SECRET")}`)}`,
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body: new URLSearchParams({ grant_type: "account_credentials", account_id: env("ZOOM_ACCOUNT_ID") }),
-  });
-  const d = await r.json().catch(() => ({}));
-  if (!r.ok || !d.access_token) throw new Error(`Zoom OAuth failed (${r.status}): ${d.reason ?? d.error ?? "no token"}`);
-  zoomToken = { value: d.access_token, exp: Date.now() + (Number(d.expires_in) || 3000) * 1000 };
-  return zoomToken.value;
+const eventPath = (eventId = "") =>
+  `/calendars/${encodeURIComponent(calendarId())}/events${eventId ? `/${encodeURIComponent(eventId)}` : ""}`;
+// Meet links are usually returned immediately, but Google may report the conference as "pending".
+function meetUrlOf(ev: any): string | null {
+  return ev.hangoutLink ?? ev.conferenceData?.entryPoints?.find((e: any) => e.entryPointType === "video")?.uri ?? null;
 }
 
 const title = (b: BookingRow) => `AKSITAS ${SERVICE[b.service].title} — ${b.full_name}`;
@@ -119,47 +108,34 @@ const deps: Deps = {
     async createEvent(b) {
       // sendUpdates=none: the attendee is only notified through our confirmation email, which is
       // sent after every step succeeded. A Google invite here could reach them before confirmation.
-      const d = await google(`/calendars/${encodeURIComponent(calendarId())}/events?sendUpdates=none`, {
+      // conferenceDataVersion=1 + createRequest asks Google to attach a Meet link to the event.
+      const d = await google(`${eventPath()}?sendUpdates=none&conferenceDataVersion=1`, {
         method: "POST",
         body: JSON.stringify({
           summary: title(b),
-          description: `Booking ID: ${b.id}\nPeserta: ${b.full_name}\nEmail: ${b.email}\nPerusahaan: ${b.company || "-"}\nPeran: ${b.role || "-"}\nAgenda: ${b.agenda}\nZoom: ${b.zoom_join_url}`,
-          location: b.zoom_join_url ?? "Zoom",
+          description: `Booking ID: ${b.id}\nPeserta: ${b.full_name}\nEmail: ${b.email}\nPerusahaan: ${b.company || "-"}\nPeran: ${b.role || "-"}\nAgenda: ${b.agenda}`,
           start: { dateTime: b.start_at, timeZone: TZ },
           end: { dateTime: b.end_at, timeZone: TZ },
           attendees: [{ email: b.email, displayName: b.full_name }],
+          conferenceData: { createRequest: { requestId: b.id, conferenceSolutionKey: { type: "hangoutsMeet" } } },
           extendedProperties: { private: { aksitasBookingId: b.id } },
         }),
       });
       if (!d.id) throw new Error("Google Calendar returned no event id");
-      return d.id as string;
+      let url = meetUrlOf(d);
+      for (let i = 0; !url && i < 5; i++) {
+        await new Promise((r) => setTimeout(r, 1000));
+        url = meetUrlOf(await google(`${eventPath(d.id)}?conferenceDataVersion=1`));
+      }
+      if (!url) {
+        // The caller only compensates events whose id it received, so clean up here.
+        await google(`${eventPath(d.id)}?sendUpdates=none`, { method: "DELETE" }).catch(() => {});
+        throw new Error("Google Meet link was not created");
+      }
+      return { id: d.id as string, meetUrl: url };
     },
     async deleteEvent(eventId) {
-      await google(`/calendars/${encodeURIComponent(calendarId())}/events/${encodeURIComponent(eventId)}?sendUpdates=none`, { method: "DELETE" });
-    },
-  },
-  zoom: {
-    async createMeeting(b) {
-      const p = localParts(new Date(b.start_at));
-      const r = await fetch(`https://api.zoom.us/v2/users/${encodeURIComponent(env("ZOOM_HOST_USER_ID"))}/meetings`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${await zoomAccessToken()}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          topic: title(b).slice(0, 200), type: 2,
-          start_time: `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}:00`, timezone: TZ,
-          duration: SERVICE[b.service].duration, agenda: b.agenda.slice(0, 1800),
-          settings: { join_before_host: false, waiting_room: true, approval_type: 2, meeting_authentication: false },
-        }),
-      });
-      const d = await r.json().catch(() => ({}));
-      if (!r.ok || !d.id || !d.join_url) throw new Error(`Zoom API error (${r.status}): ${d.message ?? "could not create meeting"}`);
-      return { id: String(d.id), joinUrl: String(d.join_url) };
-    },
-    async deleteMeeting(id) {
-      const r = await fetch(`https://api.zoom.us/v2/meetings/${encodeURIComponent(id)}`, {
-        method: "DELETE", headers: { Authorization: `Bearer ${await zoomAccessToken()}` },
-      });
-      if (!r.ok && r.status !== 404) throw new Error(`Zoom delete failed (${r.status})`);
+      await google(`${eventPath(eventId)}?sendUpdates=none`, { method: "DELETE" });
     },
   },
   mail: {
@@ -206,7 +182,6 @@ const deps: Deps = {
     humanCheckConfigured: has("TURNSTILE_SECRET_KEY"),
     configured: {
       google: has("GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GOOGLE_REFRESH_TOKEN", "GOOGLE_CALENDAR_ID"),
-      zoom: has("ZOOM_ACCOUNT_ID", "ZOOM_CLIENT_ID", "ZOOM_CLIENT_SECRET", "ZOOM_HOST_USER_ID"),
       email: has("RESEND_API_KEY", "EMAIL_FROM", "BOOKING_NOTIFICATION_EMAIL"),
       botProtection: has("TURNSTILE_SECRET_KEY") || Deno.env.get("ALLOW_UNVERIFIED_BOOKINGS") === "true",
     },

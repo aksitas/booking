@@ -67,7 +67,7 @@ try {
   console.log("✔ failed booking releases its interval");
 
   // Stale holds: released unless the customer may already have been emailed.
-  sql(ins(200, "2026-11-03T02:00:00Z", 45) + `; update public.bookings set created_at=now()-interval '20 minutes', zoom_meeting_id='z1' where idempotency_key like 'key-2026-11-03T02:00:00Z-200'`);
+  sql(ins(200, "2026-11-03T02:00:00Z", 45) + `; update public.bookings set created_at=now()-interval '20 minutes', google_event_id='g1' where idempotency_key like 'key-2026-11-03T02:00:00Z-200'`);
   sql(ins(201, "2026-11-03T03:00:00Z", 45) + `; update public.bookings set created_at=now()-interval '20 minutes', admin_notified_at=now() where idempotency_key like 'key-2026-11-03T03:00:00Z-201'`);
   assert.equal(sql("select public.expire_stale_bookings()"), "2");
   assert.equal(sql("select status||':'||needs_reconciliation from public.bookings where email='u200@example.com'"), "failed:true");
