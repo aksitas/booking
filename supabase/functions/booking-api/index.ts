@@ -1,5 +1,6 @@
 // Supabase Edge Function entry point: wires real providers into the runtime-agnostic core.
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
+import { createAdminRoutes } from "./admin.ts";
 import { type BookingRow, buildMimeMessage, createHandler, type Deps, type Interval, SERVICE, TZ } from "./booking.ts";
 
 // Trimmed: values pasted into the dashboard's multi-line secret field often carry a trailing newline.
@@ -91,6 +92,17 @@ const deps: Deps = {
         .in("status", ["processing", "confirmed"]).lt("start_at", end.toISOString()).gt("end_at", start.toISOString());
       if (error) throw error;
       return (data ?? []).map((r) => ({ start: r.start_at, end: r.end_at }));
+    },
+    async listBookings(fromStart, limit) {
+      const { data, error } = await supabase.from("bookings").select("*")
+        .gte("start_at", fromStart.toISOString()).order("start_at", { ascending: true }).limit(limit);
+      if (error) throw error;
+      return (data ?? []) as BookingRow[];
+    },
+    async getBooking(id) {
+      const { data, error } = await supabase.from("bookings").select("*").eq("id", id).maybeSingle();
+      if (error) throw error;
+      return data as BookingRow | null;
     },
   },
   calendar: {
@@ -185,6 +197,7 @@ const deps: Deps = {
     notificationEmail: Deno.env.get("BOOKING_NOTIFICATION_EMAIL") ?? "",
     requireHuman: Deno.env.get("ALLOW_UNVERIFIED_BOOKINGS") !== "true",
     humanCheckConfigured: has("TURNSTILE_SECRET_KEY"),
+    adminPassword: Deno.env.get("ADMIN_PASSWORD") ?? "",
     payment: {
       bankName: Deno.env.get("PAYMENT_BANK_NAME")?.trim() ?? "",
       accountNumber: Deno.env.get("PAYMENT_ACCOUNT_NUMBER")?.trim() ?? "",
@@ -196,8 +209,9 @@ const deps: Deps = {
       email: has("GOOGLE_REFRESH_TOKEN", "EMAIL_FROM", "BOOKING_NOTIFICATION_EMAIL"),
       botProtection: has("TURNSTILE_SECRET_KEY") || Deno.env.get("ALLOW_UNVERIFIED_BOOKINGS") === "true",
       payment: has("PAYMENT_BANK_NAME", "PAYMENT_ACCOUNT_NUMBER", "PAYMENT_ACCOUNT_HOLDER", "PAYMENT_WHATSAPP"),
+      admin: (Deno.env.get("ADMIN_PASSWORD") ?? "").length >= 12,
     },
   },
 };
 
-Deno.serve(createHandler(deps));
+Deno.serve(createHandler(deps, createAdminRoutes(deps)));

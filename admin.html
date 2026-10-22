@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#153e35">
+  <title>Admin Booking — AKSITAS</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    .admin-main{max-width:1100px;margin:auto;padding:40px 30px 80px}
+    .admin-main h1{font:600 clamp(32px,4vw,44px)/1.1 var(--display);letter-spacing:-2px;color:var(--forest);margin:16px 0 8px}
+    .admin-main h1 em{font-family:var(--serif);font-weight:400;color:#739451;letter-spacing:-1.5px}
+    .muted{color:#7b8980;font-size:12px;line-height:1.7}
+    .card{background:#fff;border:1px solid var(--line);border-radius:6px;padding:22px}
+    .login{max-width:400px;margin:30px 0}
+    .login label{display:flex;flex-direction:column;gap:8px;font-size:11px;font-weight:700;color:#40584a;margin:14px 0}
+    .login input{font:400 14px var(--sans);border:1px solid #dce3da;border-radius:4px;padding:12px;outline:none}
+    .login input:focus{border-color:#75975c;box-shadow:0 0 0 3px #edf4e8}
+    .btn{border:0;border-radius:4px;padding:10px 14px;font:700 12px var(--display);cursor:pointer;background:var(--forest);color:#fff}
+    .btn:hover{background:#2d5a48}.btn:disabled{opacity:.5;cursor:wait}
+    .btn.ghost{background:#fff;color:var(--forest);border:1px solid var(--line)}.btn.ghost:hover{background:#f2f6ee}
+    .btn.danger{background:#fff;color:#9b3e2c;border:1px solid #f0cfc5}.btn.danger:hover{background:#fff1ed}
+    .toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:26px 0 16px}
+    .toolbar input{flex:1;min-width:180px;font:400 13px var(--sans);border:1px solid #dce3da;border-radius:4px;padding:10px 12px}
+    .tabs{display:flex;border:1px solid var(--line);border-radius:4px;overflow:hidden}
+    .tabs button{border:0;background:#fff;padding:10px 14px;font:600 12px var(--sans);color:#5d6f64;cursor:pointer}
+    .tabs button[aria-pressed=true]{background:var(--forest);color:#fff}
+    .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px}
+    .stat{background:#fff;border:1px solid var(--line);border-radius:6px;padding:14px}
+    .stat b{display:block;font:700 24px var(--display);color:var(--forest)}.stat span{font-size:11px;color:#7b8980}
+    .stat.warn b{color:#b5562f}
+    .list{display:grid;gap:12px}
+    .booking{display:grid;grid-template-columns:150px 1fr auto;gap:18px;align-items:start}
+    .booking.is-cancelled{opacity:.6}
+    .when b{display:block;font:700 15px var(--display);color:var(--forest)}.when span{font-size:12px;color:#6f7d74}
+    .who b{font:700 15px var(--display);color:var(--ink)}
+    .who p{margin:4px 0;font-size:12px;color:#5d6f64;line-height:1.6}.who a{color:#58794a}
+    .agenda{white-space:pre-wrap;background:#f6f8f3;border-radius:4px;padding:8px 10px;margin-top:8px!important}
+    .badges{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 0}
+    .badge{font-size:10px;font-weight:700;border-radius:20px;padding:4px 9px;background:#eef4e9;color:#42634c}
+    .badge.paid{background:#dff0d4;color:#2f6a2a}.badge.unpaid{background:#fff4dc;color:#8a5a00}
+    .badge.overdue{background:#fde3da;color:#9b3e2c}.badge.cancelled{background:#eceeed;color:#66706a}
+    .actions{display:flex;flex-direction:column;gap:8px;min-width:150px}
+    .empty{text-align:center;padding:40px;color:#8a958d}
+    .error{color:#9b3e2c;background:#fff1ed;border:1px solid #f3d3c8;padding:10px;border-radius:4px;font-size:12px}
+    dialog{border:0;border-radius:8px;padding:24px;max-width:440px;width:calc(100% - 32px);box-shadow:0 20px 80px #102c2440}
+    dialog::backdrop{background:#102c24a6}
+    dialog h2{font:700 20px var(--display);color:var(--forest);margin:0 0 8px}
+    dialog textarea{width:100%;font:400 13px var(--sans);border:1px solid #dce3da;border-radius:4px;padding:10px;min-height:70px;margin:10px 0}
+    dialog label.check{display:flex;gap:8px;font-size:12px;color:#40584a;align-items:flex-start}
+    .dialog-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
+    @media(max-width:760px){.admin-main{padding:28px 16px 60px}.stats{grid-template-columns:1fr 1fr}.booking{grid-template-columns:1fr;gap:10px}.actions{flex-direction:row;flex-wrap:wrap;min-width:0}}
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="./" aria-label="Ke halaman booking">
+      <img class="brand-mark" src="assets/aksitas-icon.svg" alt="" width="50" height="44">
+      <span class="brand-copy"><strong>AKSITAS</strong><small>Admin booking</small></span>
+    </a>
+    <nav><button class="btn ghost" id="logout" type="button" hidden>Keluar</button></nav>
+  </header>
+
+  <main class="admin-main">
+    <div class="eyebrow"><span></span> ADMIN</div>
+    <h1>Kelola <em>booking.</em></h1>
+    <p class="muted">Cek pembayaran, tandai lunas, dan batalkan jadwal. Semua waktu dalam WIB.</p>
+
+    <section id="loginView" class="card login">
+      <form id="loginForm">
+        <label>Kata sandi admin<input id="password" type="password" autocomplete="current-password" required></label>
+        <p class="error" id="loginError" role="alert" hidden></p>
+        <button class="btn" type="submit">Masuk</button>
+      </form>
+    </section>
+
+    <section id="appView" hidden>
+      <div class="toolbar">
+        <div class="tabs" role="group" aria-label="Rentang">
+          <button type="button" data-scope="upcoming" aria-pressed="true">Mendatang</button>
+          <button type="button" data-scope="all" aria-pressed="false">Termasuk 90 hari lalu</button>
+        </div>
+        <input id="search" type="search" placeholder="Cari nama, email, atau ID booking">
+        <button class="btn ghost" id="refresh" type="button">Muat ulang</button>
+      </div>
+      <div class="stats">
+        <div class="stat"><b id="statActive">0</b><span>Booking aktif</span></div>
+        <div class="stat"><b id="statUnpaid">0</b><span>Menunggu bayar</span></div>
+        <div class="stat warn"><b id="statOverdue">0</b><span>Lewat batas bayar</span></div>
+        <div class="stat"><b id="statPaid">0</b><span>Lunas</span></div>
+      </div>
+      <p class="error" id="listError" role="alert" hidden></p>
+      <div class="list" id="list"></div>
+    </section>
+  </main>
+
+  <dialog id="cancelDialog">
+    <h2>Batalkan booking?</h2>
+    <p class="muted" id="cancelWho"></p>
+    <p class="muted">Acara di Google Calendar dihapus, link Meet tidak berlaku, dan slot dibuka kembali untuk klien lain.</p>
+    <textarea id="cancelReason" maxlength="300" placeholder="Alasan (opsional), misalnya: pembayaran tidak diterima sampai batas waktu"></textarea>
+    <label class="check"><input type="checkbox" id="cancelNotify" checked> Kirim email pemberitahuan pembatalan ke klien</label>
+    <p class="error" id="cancelError" role="alert" hidden></p>
+    <div class="dialog-actions">
+      <button class="btn ghost" type="button" id="cancelBack">Kembali</button>
+      <button class="btn danger" type="button" id="cancelConfirm">Ya, batalkan</button>
+    </div>
+  </dialog>
+
+  <script src="admin.js"></script>
+</body>
+</html>

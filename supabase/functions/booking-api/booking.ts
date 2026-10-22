@@ -28,6 +28,10 @@ export type BookingRow = {
   end_at: string;
   google_event_id?: string | null;
   meeting_url?: string | null;
+  created_at?: string;
+  paid_at?: string | null;
+  cancelled_at?: string | null;
+  cancellation_reason?: string | null;
 };
 export type NewBooking = Omit<BookingRow, "id" | "status"> & { idempotency_key: string };
 
@@ -37,6 +41,9 @@ export interface Db {
   findByIdempotencyKey(key: string): Promise<BookingRow | null>;
   update(id: string, patch: Record<string, unknown>): Promise<boolean>;
   activeBetween(start: Date, end: Date): Promise<Interval[]>;
+  // Admin page: full rows, newest sessions first within the window.
+  listBookings(fromStart: Date, limit: number): Promise<BookingRow[]>;
+  getBooking(id: string): Promise<BookingRow | null>;
 }
 export interface Deps {
   now(): Date;
@@ -60,6 +67,8 @@ export interface Deps {
     humanCheckConfigured: boolean;
     // Bank transfer details shown only in the confirmation email (kept out of the public repo).
     payment?: Payment;
+    // Admin page password (ADMIN_PASSWORD secret). Admin endpoints are disabled when unset or too short.
+    adminPassword?: string;
     configured: Record<string, boolean>;
   };
 }
@@ -336,9 +345,19 @@ function clientIp(req: Request) {
   return (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || req.headers.get("cf-connecting-ip") || "unknown";
 }
 
-export function createHandler(deps: Deps) {
+/** Extra routes (e.g. the admin API) get a chance to answer before the 404. Return null to pass. */
+export type RouteContext = {
+  url: URL;
+  path: string;
+  ipKey: string;
+  originAllowed: boolean;
+  json: (body: unknown, status?: number) => Response;
+};
+export type ExtraRoutes = (req: Request, ctx: RouteContext) => Promise<Response | null>;
+
+export function createHandler(deps: Deps, extraRoutes?: ExtraRoutes) {
   const baseHeaders = {
-    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, idempotency-key",
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, idempotency-key, x-admin-token",
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
     "Content-Type": "application/json; charset=utf-8",
     "Cache-Control": "no-store",
@@ -391,6 +410,10 @@ export function createHandler(deps: Deps) {
         if (!/^[A-Za-z0-9-]{16,64}$/.test(key)) throw new PublicError(400, "Idempotency-Key header wajib diisi.", "invalid_input");
         const result = await createBooking(deps, body, key);
         return json(result.body, result.status);
+      }
+      if (extraRoutes) {
+        const res = await extraRoutes(req, { url, path, ipKey, originAllowed, json });
+        if (res) return res;
       }
       return json({ error: "Endpoint tidak ditemukan.", code: "not_found" }, 404);
     } catch (error) {

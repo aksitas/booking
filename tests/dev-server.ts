@@ -4,7 +4,11 @@
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { extname, join } from "node:path";
+import { createAdminRoutes } from "../supabase/functions/booking-api/admin.ts";
 import { createHandler, type Deps, type BookingRow } from "../supabase/functions/booking-api/booking.ts";
+
+// Local-only admin password for http://localhost:8787/admin.html (the live site uses the ADMIN_PASSWORD secret).
+const DEV_ADMIN_PASSWORD = "dev-admin-password";
 
 const PORT = Number(process.env.PORT ?? 8787);
 const ORIGIN = `http://localhost:${PORT}`;
@@ -23,13 +27,15 @@ const deps: Deps = {
     async insertProcessing(row) {
       if (rows.some((r) => r.idempotency_key === row.idempotency_key)) return { conflict: true };
       if (rows.some((r) => active(r) && r.start_at < row.end_at && r.end_at > row.start_at)) return { conflict: true };
-      const r = { ...row, id: crypto.randomUUID(), status: "processing" as const };
+      const r = { ...row, id: crypto.randomUUID(), status: "processing" as const, created_at: new Date().toISOString() };
       rows.push(r);
       return { row: { ...r } };
     },
     async findByIdempotencyKey(k) { return rows.find((r) => r.idempotency_key === k) ?? null; },
     async update(id, patch) { Object.assign(rows.find((r) => r.id === id)!, patch); return true; },
     async activeBetween() { return rows.filter(active).map((r) => ({ start: r.start_at, end: r.end_at })); },
+    async listBookings(from) { return rows.filter((r) => r.start_at >= from.toISOString()).sort((a, b) => a.start_at.localeCompare(b.start_at)).map((r) => ({ ...r })); },
+    async getBooking(id) { return rows.find((r) => r.id === id) ?? null; },
   },
   calendar: {
     async busy() { return []; },
@@ -40,9 +46,9 @@ const deps: Deps = {
   verifyHuman: async () => true,
   rateLimit: async () => true,
   hash: async (v) => v,
-  config: { allowedOrigins: [ORIGIN], notificationEmail: "team@aksitas.test", requireHuman: false, humanCheckConfigured: false, configured: { fake: true } },
+  config: { allowedOrigins: [ORIGIN], notificationEmail: "team@aksitas.test", requireHuman: false, humanCheckConfigured: false, configured: { fake: true }, adminPassword: DEV_ADMIN_PASSWORD },
 };
-const api = createHandler(deps);
+const api = createHandler(deps, createAdminRoutes(deps));
 const types: Record<string, string> = {
   ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8",
   ".svg": "image/svg+xml", ".png": "image/png",
@@ -65,7 +71,7 @@ createServer(async (req, res) => {
   try {
     let content: string | Buffer = await readFile(join(root, file));
     // Point the page at this server; Turnstile is off locally (its widget only runs on aksitas.github.io).
-    if (file === "app.js") content = content.toString("utf8")
+    if (file === "app.js" || file === "admin.js") content = content.toString("utf8")
       .replace(/apiUrl: "[^"]*"/, `apiUrl: "${ORIGIN}/api"`).replace(/publishableKey: "[^"]*"/, `publishableKey: "local-dev"`)
       .replace(/turnstileSiteKey: "[^"]*"/, `turnstileSiteKey: ""`);
     res.writeHead(200, { "Content-Type": types[extname(file)] ?? "text/plain; charset=utf-8" });
