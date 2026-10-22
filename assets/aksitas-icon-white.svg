@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 250 220" role="img" aria-labelledby="title desc">
+  <title id="title">Ikon AKSITAS (versi terang)</title>
+  <desc id="desc">Monogram jalur aksi dari titik awal menuju progres.</desc>
+  <g fill="none" stroke="#FFFFFF" stroke-width="25" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M30 180 92 38l49 91"/>
+    <path d="M66 179h88l-22-42"/>
+    <path d="M75 125h73c18 0 28-7 39-21l25-33"/>
+  </g>
+  <circle cx="30" cy="180" r="13" fill="#B7F34A"/>
+  <path d="m201 61 28-9-4 29-13-10z" fill="#B7F34A"/>
+</svg>

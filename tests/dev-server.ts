@@ -43,7 +43,10 @@ const deps: Deps = {
   config: { allowedOrigins: [ORIGIN], notificationEmail: "team@aksitas.test", requireHuman: false, humanCheckConfigured: false, configured: { fake: true } },
 };
 const api = createHandler(deps);
-const types: Record<string, string> = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css" };
+const types: Record<string, string> = {
+  ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8",
+  ".svg": "image/svg+xml", ".png": "image/png",
+};
 
 createServer(async (req, res) => {
   const url = new URL(req.url ?? "/", ORIGIN);
@@ -57,12 +60,15 @@ createServer(async (req, res) => {
   }
   if (url.searchParams.has("fail")) fail = url.searchParams.get("fail")!;
   const file = url.pathname === "/" ? "index.html" : url.pathname.slice(1);
-  if (!/^[\w.-]+$/.test(file)) { res.writeHead(404); return res.end(); }
+  // Root files plus one level of assets/; no "..", so nothing outside the project is served.
+  if (!/^(assets\/)?[\w-]+(\.[\w-]+)*$/.test(file)) { res.writeHead(404); return res.end(); }
   try {
-    let content = await readFile(join(root, file), "utf8");
-    if (file === "app.js") content = content
-      .replace(/apiUrl: "[^"]*"/, `apiUrl: "${ORIGIN}/api"`).replace(/publishableKey: "[^"]*"/, `publishableKey: "local-dev"`);
-    res.writeHead(200, { "Content-Type": `${types[extname(file)] ?? "text/plain"}; charset=utf-8` });
+    let content: string | Buffer = await readFile(join(root, file));
+    // Point the page at this server; Turnstile is off locally (its widget only runs on aksitas.github.io).
+    if (file === "app.js") content = content.toString("utf8")
+      .replace(/apiUrl: "[^"]*"/, `apiUrl: "${ORIGIN}/api"`).replace(/publishableKey: "[^"]*"/, `publishableKey: "local-dev"`)
+      .replace(/turnstileSiteKey: "[^"]*"/, `turnstileSiteKey: ""`);
+    res.writeHead(200, { "Content-Type": types[extname(file)] ?? "text/plain; charset=utf-8" });
     res.end(content);
   } catch { res.writeHead(404); res.end(); }
 }).listen(PORT, () => console.log(`AKSITAS booking dev preview on ${ORIGIN} (fake providers)`));

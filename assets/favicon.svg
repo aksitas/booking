@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1080" role="img" aria-labelledby="title desc">
+  <title id="title">Avatar sosial AKSITAS</title>
+  <desc id="desc">Monogram AKSITAS putih dan lime pada latar navy.</desc>
+  <rect width="1080" height="1080" rx="220" fill="#101828"/>
+  <g transform="translate(165 210) scale(3)">
+    <g fill="none" stroke="#FFFFFF" stroke-width="25" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M30 180 92 38l49 91"/>
+      <path d="M66 179h88l-22-42"/>
+      <path d="M75 125h73c18 0 28-7 39-21l25-33"/>
+    </g>
+    <circle cx="30" cy="180" r="13" fill="#B7F34A"/>
+    <path d="m201 61 28-9-4 29-13-10z" fill="#B7F34A"/>
+  </g>
+</svg>

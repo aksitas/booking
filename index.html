@@ -5,17 +5,22 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#153e35">
   <meta name="description" content="Jadwalkan sesi coaching dan consulting bersama AKSITAS. Pilih layanan, tanggal, dan waktu yang sesuai.">
+  <meta property="og:title" content="Booking Sesi — AKSITAS">
+  <meta property="og:description" content="Jadwalkan sesi coaching (45 menit) atau consulting (60 menit) gratis bersama AKSITAS.">
+  <meta property="og:image" content="https://aksitas.github.io/booking/assets/apple-touch-icon.png">
   <title>Booking Sesi — AKSITAS</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <div class="topline"><span class="top-dot"></span> AKSITAS · COACHING & CONSULTING</div>
   <header class="site-header">
     <a class="brand" href="#" aria-label="AKSITAS beranda">
-      <span class="brand-mark">A<span>.</span></span>
+      <img class="brand-mark" src="assets/aksitas-icon.svg" alt="" width="50" height="44">
       <span class="brand-copy"><strong>AKSITAS</strong><small>Clarity into action.</small></span>
     </a>
     <nav><a href="#layanan">Layanan</a><a href="#cara-kerja">Cara kerja</a><a class="nav-cta" href="#booking">Pilih jadwal <span>↗</span></a></nav>
@@ -33,7 +38,7 @@
         <div class="art-orbit orbit-one"></div><div class="art-orbit orbit-two"></div>
         <div class="art-sun"></div><div class="art-path"></div>
         <div class="art-label label-top">THINK CLEARLY</div><div class="art-label label-bottom">MOVE WITH INTENT</div>
-        <div class="art-stamp">A<span>↗</span></div>
+        <div class="art-stamp"><img src="assets/aksitas-icon-white.svg" alt="" width="34" height="30"></div>
       </div>
     </section>
 
@@ -92,7 +97,7 @@
         </div>
 
         <aside class="summary-card">
-          <div class="summary-top"><span class="summary-kicker">YOUR SESSION</span><span class="summary-mark">A.</span></div>
+          <div class="summary-top"><span class="summary-kicker">YOUR SESSION</span><img class="summary-mark" src="assets/aksitas-icon-white.svg" alt="AKSITAS" width="34" height="30"></div>
           <div class="summary-title"><span id="summaryType">Coaching Session</span><h3 id="summaryHeading">Make room<br>for growth.</h3><p id="summaryDescription">Sesi terarah untuk membantu Anda menemukan perspektif dan langkah berikutnya.</p></div>
           <div class="summary-divider"></div>
           <div class="summary-row"><span class="summary-icon">◷</span><div><small>DURASI</small><strong id="summaryDuration">45 menit</strong></div></div>
@@ -114,7 +119,7 @@
     </section>
     <section class="closing"><div><span class="closing-star">✳</span><h2>Perubahan besar<br>dimulai dari <em>percakapan.</em></h2></div><a href="#booking">Jadwalkan sesi <span>↗</span></a></section>
   </main>
-  <footer><a class="footer-brand" href="#">AKSITAS<span>.</span></a><span>© <span id="year"></span> AKSITAS · Coaching & Consulting · <a href="privacy.html">Kebijakan Privasi</a></span><a href="https://aksitas.github.io/" target="_blank" rel="noopener">Website utama ↗</a></footer>
+  <footer><a class="footer-brand" href="#"><img src="assets/aksitas-icon.svg" alt="" width="25" height="22">AKSITAS</a><span>© <span id="year"></span> AKSITAS · Coaching & Consulting · <a href="privacy.html">Kebijakan Privasi</a></span><a href="https://aksitas.github.io/" target="_blank" rel="noopener">Website utama ↗</a></footer>
 
   <div class="success-modal" id="successModal" hidden role="dialog" aria-modal="true" aria-labelledby="successTitle">
     <div class="success-box"><button class="modal-close" id="closeModal" aria-label="Tutup" type="button">×</button><div class="success-check">✓</div><div class="eyebrow"><span></span> NEXT STEP</div><h2 id="successTitle">Booking Anda<br><em>terkonfirmasi.</em></h2><p id="successText"></p><div class="modal-actions"><button class="text-btn" id="downloadIcs" type="button">Tambahkan ke kalender (.ics)</button></div><p class="modal-small">Tidak menerima email dalam 10 menit? Periksa folder spam, lalu balas ke tim AKSITAS dengan menyertakan ID booking Anda.</p></div>
