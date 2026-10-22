@@ -185,10 +185,17 @@ const deps: Deps = {
     notificationEmail: Deno.env.get("BOOKING_NOTIFICATION_EMAIL") ?? "",
     requireHuman: Deno.env.get("ALLOW_UNVERIFIED_BOOKINGS") !== "true",
     humanCheckConfigured: has("TURNSTILE_SECRET_KEY"),
+    payment: {
+      bankName: Deno.env.get("PAYMENT_BANK_NAME")?.trim() ?? "",
+      accountNumber: Deno.env.get("PAYMENT_ACCOUNT_NUMBER")?.trim() ?? "",
+      accountHolder: Deno.env.get("PAYMENT_ACCOUNT_HOLDER")?.trim() ?? "",
+      whatsapp: Deno.env.get("PAYMENT_WHATSAPP")?.trim() ?? "",
+    },
     configured: {
       google: has("GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GOOGLE_REFRESH_TOKEN", "GOOGLE_CALENDAR_ID"),
       email: has("GOOGLE_REFRESH_TOKEN", "EMAIL_FROM", "BOOKING_NOTIFICATION_EMAIL"),
       botProtection: has("TURNSTILE_SECRET_KEY") || Deno.env.get("ALLOW_UNVERIFIED_BOOKINGS") === "true",
+      payment: has("PAYMENT_BANK_NAME", "PAYMENT_ACCOUNT_NUMBER", "PAYMENT_ACCOUNT_HOLDER", "PAYMENT_WHATSAPP"),
     },
   },
 };

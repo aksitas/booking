@@ -9,8 +9,8 @@
     timezone: "Asia/Jakarta",
   };
   const SERVICES = {
-    coaching: { title:"Coaching Session", heading:"Make room<br>for growth.", description:"Sesi terarah untuk membantu Anda menemukan perspektif dan langkah berikutnya.", duration:45 },
-    consulting: { title:"Consulting Session", heading:"Find your<br>next direction.", description:"Diskusi strategis untuk mengurai tantangan dan merumuskan pendekatan yang lebih terarah.", duration:60 }
+    coaching: { title:"Coaching Session", heading:"Make room <br>for growth.", description:"Sesi terarah untuk membantu Anda menemukan perspektif dan langkah berikutnya.", duration:45, price:"Rp300.000" },
+    consulting: { title:"Consulting Session", heading:"Find your <br>next direction.", description:"Diskusi strategis untuk mengurai tantangan dan merumuskan pendekatan yang lebih terarah.", duration:60, price:"Rp500.000" }
   };
   const $ = id => document.getElementById(id);
   const state = { service:"coaching", month:new Date(), date:null, time:null, selectedSlot:null, slots:[], lastBooking:null, idemKey:null, captchaToken:"" };
@@ -100,7 +100,7 @@
   function renderSummary(){
     const s=SERVICES[state.service];
     $("summaryType").textContent=s.title;$("summaryHeading").innerHTML=s.heading;$("summaryDescription").textContent=s.description;
-    $("summaryDuration").textContent=s.duration+" menit";$("summaryDate").textContent=state.date?formatShort(state.date):"Belum dipilih";
+    $("summaryDuration").textContent=s.duration+" menit";$("summaryPrice").textContent=s.price+" / sesi";$("summaryDate").textContent=state.date?formatShort(state.date):"Belum dipilih";
     const t=state.selectedSlot?.label || (state.time?new Intl.DateTimeFormat("id-ID",{hour:"2-digit",minute:"2-digit",timeZone:"Asia/Jakarta"}).format(new Date(state.time))+" WIB":"Pilih slot waktu");
     $("summaryTime").textContent=t;
   }
@@ -130,7 +130,7 @@
     try{
       const result=await api("/book",{method:"POST",body:JSON.stringify(data),headers:{"Idempotency-Key":state.idemKey}});
       state.idemKey=null;state.lastBooking=result;
-      $("successText").textContent=`Sesi ${SERVICES[result.service||state.service].title} pada ${formatDate(state.date)}, pukul ${result.localTime||state.selectedSlot?.label||""} telah terkonfirmasi. Detail dan tautan Google Meet telah dikirim ke ${data.email}. ID booking: ${result.bookingId}.`;
+      $("successText").textContent=`Sesi ${SERVICES[result.service||state.service].title} pada ${formatDate(state.date)}, pukul ${result.localTime||state.selectedSlot?.label||""} telah terkonfirmasi. Detail, tautan Google Meet, dan instruksi pembayaran (${SERVICES[result.service||state.service].price}) telah dikirim ke ${data.email}. ID booking: ${result.bookingId}.`;
       $("successModal").hidden=false;document.body.classList.add("no-scroll");$("closeModal").focus();
       $("summaryTime").textContent=result.localTime||state.selectedSlot?.label||"Terkonfirmasi";
     }catch(error){

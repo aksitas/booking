@@ -1,7 +1,7 @@
 // Run: npm test  (Node >= 22.18 strips TypeScript types natively)
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { availableSlots, type BookingRow, buildMimeMessage, createBooking, createHandler, type Deps, PublicError, validateBooking } from "../supabase/functions/booking-api/booking.ts";
+import { availableSlots, type BookingRow, buildMimeMessage, createBooking, paymentDeadline, waLink, createHandler, type Deps, PublicError, validateBooking } from "../supabase/functions/booking-api/booking.ts";
 
 // Thursday 2026-10-22 17:00 WIB. Next bookable day: Friday 2026-10-23.
 const NOW = new Date("2026-10-22T10:00:00Z");
@@ -17,7 +17,7 @@ function fakeDeps(fail: Fail = {}, opts: { busy?: { start: string; end: string }
   const rows: (BookingRow & { idempotency_key: string; [k: string]: unknown })[] = [];
   const calls: string[] = [];
   const events = new Set<string>();
-  const sent: { to: string; subject: string }[] = [];
+  const sent: { to: string; subject: string; text: string; html: string }[] = [];
   let n = 0;
   const active = (r: BookingRow) => r.status === "processing" || r.status === "confirmed";
   const deps: Deps = {
@@ -58,7 +58,7 @@ function fakeDeps(fail: Fail = {}, opts: { busy?: { start: string; end: string }
         const kind = m.to === "team@aksitas.test" ? "adminMail" : "customerMail";
         calls.push(kind);
         if (fail[kind] && !m.subject.startsWith("DIBATALKAN")) throw new Error(`${kind} rejected`);
-        sent.push({ to: m.to, subject: m.subject });
+        sent.push({ to: m.to, subject: m.subject, text: m.text, html: m.html });
       },
     },
     verifyHuman: async (t) => t === "ok-token",
@@ -232,4 +232,34 @@ test("Gmail MIME message round-trips UTF-8 subject/body and blocks header inject
   assert.match(head, /^To: <peserta@example\.com>$/m);
   const parts = [...msg.matchAll(/Content-Transfer-Encoding: base64\r\n\r\n([A-Za-z0-9+/=\r\n]+?)\r\n--/g)].map((p) => Buffer.from(p[1].replace(/\r\n/g, ""), "base64").toString("utf8"));
   assert.deepEqual(parts, ["Halo Ñandú — sampai jumpa", "<p>Halo Ñandú — sampai jumpa</p>"]);
+});
+
+test("confirmation email carries price, bank details, WhatsApp proof link and 1x24h deadline", async () => {
+  const f = fakeDeps();
+  f.deps.config.payment = { bankName: "BCA", accountNumber: "1234567890", accountHolder: "AKSITAS", whatsapp: "0812-3456-7890" };
+  await createBooking(f.deps, valid({ service: "consulting" }), KEY);
+  const customer = f.sent.find((s) => s.to === "test@example.com")!;
+  assert.match(customer.text, /Biaya: Rp500\.000/);
+  assert.match(customer.text, /BCA 1234567890 a\.n\. AKSITAS/);
+  assert.match(customer.text, /https:\/\/wa\.me\/6281234567890\?text=/);
+  // Booked Thu 17:00 WIB for Fri 09:00 WIB: the session comes before booking+24h, so it is the deadline.
+  assert.match(customer.text, /paling lambat Jumat, 23 Oktober 2026, 09:00 WIB/);
+  const team = f.sent.find((s) => s.to === "team@aksitas.test")!;
+  assert.match(team.text, /Pembayaran: Rp500\.000, menunggu bukti transfer/);
+});
+
+test("without payment settings the email still states the price and promises instructions", async () => {
+  const f = fakeDeps();
+  await createBooking(f.deps, valid(), KEY);
+  const customer = f.sent.find((s) => s.to === "test@example.com")!;
+  assert.match(customer.text, /Pembayaran: Rp300\.000/);
+  assert.match(customer.text, /akan mengirim instruksi transfer/);
+  assert.doesNotMatch(customer.text, /wa\.me/);
+});
+
+test("payment deadline is 1x24h after booking unless the session starts earlier", () => {
+  const booked = new Date("2026-10-22T10:00:00Z");
+  assert.equal(paymentDeadline(booked, new Date("2026-10-30T02:00:00Z")).toISOString(), "2026-10-23T10:00:00.000Z");
+  assert.equal(paymentDeadline(booked, new Date("2026-10-23T02:00:00Z")).toISOString(), "2026-10-23T02:00:00.000Z");
+  assert.equal(waLink("+62 812-3456-7890", "hi"), "https://wa.me/6281234567890?text=hi");
 });

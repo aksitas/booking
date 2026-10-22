@@ -54,6 +54,9 @@ No setup needed: the `calendar.events` scope from step 3 lets the function attac
 3. Set `EMAIL_FROM` to the address of the Google account that authorized the token (Gmail only sends as that account or its verified aliases), optionally `EMAIL_FROM_NAME`, and `BOOKING_NOTIFICATION_EMAIL` to the team inbox (also used as Reply-To).
 4. Test delivery to both customer and team. The code reports success only if the Gmail API accepts both messages; acceptance does not guarantee inbox placement.
 
+## 5b. Pricing and payment
+Coaching costs Rp300.000 and Consulting Rp500.000 per session (`SERVICE` in `booking.ts`, `SERVICES` in `app.js`, and the Layanan section in `index.html`; keep them in sync). Bookings are still confirmed automatically; the confirmation email tells the client to transfer and send the proof via WhatsApp within 1x24 hours of booking (or before the session if that is sooner). Set `PAYMENT_BANK_NAME`, `PAYMENT_ACCOUNT_NUMBER`, `PAYMENT_ACCOUNT_HOLDER` and `PAYMENT_WHATSAPP` as Edge Function secrets; `/health` reports `payment: true` once all four are set. Unpaid bookings are not cancelled automatically: the team checks proofs and cancels manually.
+
 ## 6. Deploy the Edge Function
 Install Supabase CLI, then from this directory:
 

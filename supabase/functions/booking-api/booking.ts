@@ -3,8 +3,8 @@
 
 export const TZ = "Asia/Jakarta";
 export const SERVICE = {
-  coaching: { title: "Coaching", duration: 45 },
-  consulting: { title: "Consulting", duration: 60 },
+  coaching: { title: "Coaching", duration: 45, price: 300_000 },
+  consulting: { title: "Consulting", duration: 60, price: 500_000 },
 } as const;
 export type ServiceKey = keyof typeof SERVICE;
 
@@ -58,6 +58,8 @@ export interface Deps {
     // false only when explicitly opted out for a test environment.
     requireHuman: boolean;
     humanCheckConfigured: boolean;
+    // Bank transfer details shown only in the confirmation email (kept out of the public repo).
+    payment?: Payment;
     configured: Record<string, boolean>;
   };
 }
@@ -199,21 +201,45 @@ export function buildMimeMessage(m: { from: string; fromName: string; to: string
 export function escapeHtml(s: string) {
   return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
 }
-function emails(b: BookingRow, joinUrl: string) {
+// ---------- Payment (manual bank transfer, proof sent via WhatsApp) ----------
+export type Payment = { bankName: string; accountNumber: string; accountHolder: string; whatsapp: string };
+export const PAYMENT_WINDOW_MS = 24 * 60 * 60 * 1000;
+export const fmtRupiah = (n: number) => `Rp${new Intl.NumberFormat("id-ID").format(n)}`;
+/** 1x24 hours after booking, but never later than the session itself. */
+export const paymentDeadline = (bookedAt: Date, start: Date) =>
+  new Date(Math.min(bookedAt.getTime() + PAYMENT_WINDOW_MS, start.getTime()));
+/** wa.me needs the international number without "+" or leading 0 (Indonesian 08xx → 628xx). */
+export function waLink(phone: string, message: string) {
+  let digits = phone.replace(/\D/g, "");
+  if (digits.startsWith("0")) digits = "62" + digits.slice(1);
+  return `https://wa.me/${digits}?text=${encodeURIComponent(message)}`;
+}
+export const paymentReady = (p?: Payment): p is Payment =>
+  !!p && [p.bankName, p.accountNumber, p.accountHolder, p.whatsapp].every((v) => v.trim().length > 0) && /\d{8,}/.test(p.whatsapp.replace(/\D/g, ""));
+
+function emails(b: BookingRow, joinUrl: string, payment?: Payment, bookedAt = new Date()) {
   const svc = SERVICE[b.service], start = new Date(b.start_at), when = fmtWhen(start);
-  const h = escapeHtml;
+  const h = escapeHtml, price = fmtRupiah(svc.price), deadline = fmtWhen(paymentDeadline(bookedAt, start));
+  const pay = paymentReady(payment) ? payment : null;
+  const wa = pay ? waLink(pay.whatsapp, `Halo AKSITAS, berikut bukti transfer untuk booking ${svc.title} (ID ${b.id}) atas nama ${b.full_name}, jadwal ${when}.`) : "";
+  const payHtml = pay
+    ? `<p><strong>Pembayaran: ${price}</strong><br>Transfer ke:<br>${h(pay.bankName)} · <strong>${h(pay.accountNumber)}</strong><br>a.n. ${h(pay.accountHolder)}</p><p>Kirim bukti transfer via WhatsApp <strong>paling lambat ${h(deadline)}</strong>:<br><a href="${h(wa)}">Kirim bukti transfer via WhatsApp</a> (${h(pay.whatsapp)})</p><p>Jika bukti transfer belum kami terima sampai batas waktu tersebut, jadwal dapat dibatalkan.</p>`
+    : `<p><strong>Pembayaran: ${price}</strong><br>Tim AKSITAS akan mengirim instruksi transfer melalui email ini. Mohon lakukan pembayaran paling lambat ${h(deadline)}.</p>`;
+  const payText = pay
+    ? `Pembayaran: ${price}\nTransfer ke: ${pay.bankName} ${pay.accountNumber} a.n. ${pay.accountHolder}\nKirim bukti transfer via WhatsApp paling lambat ${deadline}: ${wa}\nJika bukti transfer belum kami terima sampai batas waktu tersebut, jadwal dapat dibatalkan.`
+    : `Pembayaran: ${price}\nTim AKSITAS akan mengirim instruksi transfer melalui email ini. Mohon bayar paling lambat ${deadline}.`;
   return {
     customer: {
       to: b.email,
       subject: `Booking terkonfirmasi — AKSITAS ${svc.title}`,
-      html: `<p>Halo ${h(b.full_name)},</p><p>Booking ${svc.title} Anda dengan AKSITAS telah <strong>terkonfirmasi</strong>.</p><p><strong>Waktu:</strong> ${h(when)}<br><strong>Durasi:</strong> ${svc.duration} menit<br><strong>Agenda:</strong> ${h(b.agenda)}</p><p><a href="${h(joinUrl)}">Gabung Google Meet</a><br>${h(joinUrl)}</p><p>Gunakan email ini saat bergabung agar langsung masuk tanpa menunggu persetujuan.</p><p>ID booking: ${h(b.id)}<br>Jika perlu mengubah jadwal, balas email ini.</p><p>Salam,<br>Tim AKSITAS</p>`,
-      text: `Halo ${b.full_name},\n\nBooking ${svc.title} Anda dengan AKSITAS telah terkonfirmasi.\nWaktu: ${when}\nDurasi: ${svc.duration} menit\nAgenda: ${b.agenda}\nGoogle Meet: ${joinUrl}\nID booking: ${b.id}\n\nJika perlu mengubah jadwal, balas email ini.\n\nSalam,\nTim AKSITAS`,
+      html: `<p>Halo ${h(b.full_name)},</p><p>Booking ${svc.title} Anda dengan AKSITAS telah <strong>terkonfirmasi</strong>.</p><p><strong>Waktu:</strong> ${h(when)}<br><strong>Durasi:</strong> ${svc.duration} menit<br><strong>Biaya:</strong> ${price}<br><strong>Agenda:</strong> ${h(b.agenda)}</p>${payHtml}<p><a href="${h(joinUrl)}">Gabung Google Meet</a><br>${h(joinUrl)}</p><p>Gunakan email ini saat bergabung agar langsung masuk tanpa menunggu persetujuan.</p><p>ID booking: ${h(b.id)}<br>Jika perlu mengubah jadwal, balas email ini.</p><p>Salam,<br>Tim AKSITAS</p>`,
+      text: `Halo ${b.full_name},\n\nBooking ${svc.title} Anda dengan AKSITAS telah terkonfirmasi.\nWaktu: ${when}\nDurasi: ${svc.duration} menit\nBiaya: ${price}\nAgenda: ${b.agenda}\n\n${payText}\n\nGoogle Meet: ${joinUrl}\nID booking: ${b.id}\n\nJika perlu mengubah jadwal, balas email ini.\n\nSalam,\nTim AKSITAS`,
     },
     admin: (to: string) => ({
       to,
       subject: `Booking baru — ${svc.title} — ${b.full_name}`,
-      html: `<p>Booking baru (konfirmasi ke peserta sedang dikirim).</p><p><strong>${h(b.full_name)}</strong> (${h(b.email)})<br>${h(b.company || "-")} · ${h(b.role || "-")}<br>${h(when)} · ${svc.duration} menit<br>Google Meet: <a href="${h(joinUrl)}">${h(joinUrl)}</a></p><p>Agenda: ${h(b.agenda)}</p><p>ID: ${h(b.id)}</p>`,
-      text: `Booking baru\n${b.full_name} <${b.email}>\n${b.company || "-"} · ${b.role || "-"}\n${when} · ${svc.duration} menit\nGoogle Meet: ${joinUrl}\nAgenda: ${b.agenda}\nID: ${b.id}`,
+      html: `<p>Booking baru (konfirmasi ke peserta sedang dikirim).</p><p><strong>${h(b.full_name)}</strong> (${h(b.email)})<br>${h(b.company || "-")} · ${h(b.role || "-")}<br>${h(when)} · ${svc.duration} menit<br>Google Meet: <a href="${h(joinUrl)}">${h(joinUrl)}</a></p><p><strong>Pembayaran:</strong> ${price}, menunggu bukti transfer via WhatsApp paling lambat ${h(deadline)}.</p><p>Agenda: ${h(b.agenda)}</p><p>ID: ${h(b.id)}</p>`,
+      text: `Booking baru\n${b.full_name} <${b.email}>\n${b.company || "-"} · ${b.role || "-"}\n${when} · ${svc.duration} menit\nGoogle Meet: ${joinUrl}\nPembayaran: ${price}, menunggu bukti transfer paling lambat ${deadline}\nAgenda: ${b.agenda}\nID: ${b.id}`,
     }),
     adminCancelled: (to: string, reason: string) => ({
       to,
@@ -269,7 +295,7 @@ export async function createBooking(deps: Deps, body: unknown, idempotencyKey: s
     b.google_event_id = event.id; b.meeting_url = event.meetUrl;
     if (!(await deps.db.update(b.id, { google_event_id: event.id, meeting_url: event.meetUrl }))) throw new Error("persist event ids failed");
 
-    const mail = emails(b, event.meetUrl);
+    const mail = emails(b, event.meetUrl, deps.config.payment, deps.now());
     await deps.mail.send(mail.admin(deps.config.notificationEmail));
     adminNotified = true;
     if (!(await deps.db.update(b.id, { admin_notified_at: deps.now().toISOString() }))) throw new Error("persist admin notice failed");
