@@ -161,6 +161,8 @@ const deps: Deps = {
       body: new URLSearchParams({ secret: env("TURNSTILE_SECRET_KEY"), response: token, remoteip: ip }),
     });
     const d = await r.json().catch(() => ({}));
+    // error-codes say why (e.g. invalid-input-secret = wrong TURNSTILE_SECRET_KEY); never the secret itself.
+    if (!(r.ok && d.success === true)) console.error("[booking-api] turnstile rejected", r.status, d["error-codes"], d.hostname ?? "");
     return r.ok && d.success === true;
   },
   async rateLimit(bucket, windowSeconds, max) {
