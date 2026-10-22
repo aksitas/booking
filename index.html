@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#153e35">
+  <meta name="description" content="Jadwalkan sesi coaching dan consulting bersama AKSITAS. Pilih layanan, tanggal, dan waktu yang sesuai.">
+  <title>Booking Sesi — AKSITAS</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="topline"><span class="top-dot"></span> AKSITAS · COACHING & CONSULTING</div>
+  <header class="site-header">
+    <a class="brand" href="#" aria-label="AKSITAS beranda">
+      <span class="brand-mark">A<span>.</span></span>
+      <span class="brand-copy"><strong>AKSITAS</strong><small>Clarity into action.</small></span>
+    </a>
+    <nav><a href="#layanan">Layanan</a><a href="#cara-kerja">Cara kerja</a><a class="nav-cta" href="#booking">Pilih jadwal <span>↗</span></a></nav>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="hero-copy">
+        <div class="eyebrow"><span></span> MAKE SPACE FOR YOUR NEXT MOVE</div>
+        <h1>Waktu untuk<br><em>melangkah lebih jauh.</em></h1>
+        <p class="hero-desc">Percakapan yang tepat bisa membuka perspektif baru. Jadwalkan sesi coaching atau consulting bersama AKSITAS.</p>
+        <div class="hero-proof"><div class="avatar-stack"><i>A</i><i>K</i><i>S</i></div><span>Ruang percakapan yang fokus.<br><b>Agenda Anda, langkah berikutnya.</b></span></div>
+      </div>
+      <div class="hero-art" aria-label="Ilustrasi abstrak pertumbuhan" role="img">
+        <div class="art-orbit orbit-one"></div><div class="art-orbit orbit-two"></div>
+        <div class="art-sun"></div><div class="art-path"></div>
+        <div class="art-label label-top">THINK CLEARLY</div><div class="art-label label-bottom">MOVE WITH INTENT</div>
+        <div class="art-stamp">A<span>↗</span></div>
+      </div>
+    </section>
+
+    <section class="booking-section" id="booking">
+      <div class="section-heading">
+        <div><div class="eyebrow"><span></span> BOOK A SESSION</div><h2>Mulai dari satu<br><em>percakapan.</em></h2></div>
+        <p>Pilih sesi yang paling sesuai dengan kebutuhan Anda. Proses booking hanya beberapa langkah.</p>
+      </div>
+
+      <div class="booking-layout">
+        <div class="booking-main">
+          <div class="step-head"><span class="step-no">01</span><div><h3>Pilih layanan</h3><p>Topik yang ingin Anda eksplorasi</p></div></div>
+          <div class="service-grid" id="serviceGrid">
+            <button class="service-card selected" data-service="coaching" type="button" aria-pressed="true">
+              <span class="service-icon">◎</span><span class="service-tag">PERSONAL GROWTH</span><strong>Coaching</strong>
+              <span class="service-desc">Temukan perspektif, potensi, dan langkah nyata untuk berkembang.</span>
+              <span class="service-meta"><span>45 menit</span><span class="radio-dot"></span></span>
+            </button>
+            <button class="service-card" data-service="consulting" type="button" aria-pressed="false">
+              <span class="service-icon">↗</span><span class="service-tag">STRATEGIC CLARITY</span><strong>Consulting</strong>
+              <span class="service-desc">Bedah tantangan dan susun pendekatan yang lebih terarah.</span>
+              <span class="service-meta"><span>60 menit</span><span class="radio-dot"></span></span>
+            </button>
+          </div>
+
+          <div class="step-head calendar-head"><span class="step-no">02</span><div><h3>Tentukan tanggal & waktu</h3><p>Semua jadwal ditampilkan dalam WIB (UTC+7)</p></div></div>
+          <div class="schedule-card">
+            <div class="calendar-panel">
+              <div class="month-control"><button id="prevMonth" aria-label="Bulan sebelumnya" type="button">←</button><strong id="monthLabel">Oktober 2026</strong><button id="nextMonth" aria-label="Bulan berikutnya" type="button">→</button></div>
+              <div class="calendar-grid weekdays"><span>Min</span><span>Sen</span><span>Sel</span><span>Rab</span><span>Kam</span><span>Jum</span><span>Sab</span></div>
+              <div class="calendar-grid" id="calendarDays" role="group" aria-label="Pilih tanggal"></div>
+              <div class="calendar-legend"><span><i></i> Tersedia</span><span><i class="legend-selected"></i> Dipilih</span></div>
+            </div>
+            <div class="times-panel">
+              <div class="time-date"><strong id="selectedDateLabel">Pilih tanggal</strong><span id="availableLabel">Pilih tanggal untuk melihat waktu</span></div>
+              <div id="timeSlots" class="time-slots"><div class="empty-slots"><span>◷</span><p>Slot waktu akan tampil<br>setelah tanggal dipilih.</p></div></div>
+              <p class="timezone-note"><span>◉</span> Waktu Indonesia Barat · GMT+7</p>
+            </div>
+          </div>
+
+          <div class="step-head details-head"><span class="step-no">03</span><div><h3>Detail Anda</h3><p>Agar kami bisa mempersiapkan sesi dengan baik</p></div></div>
+          <form id="bookingForm" novalidate>
+            <div class="form-grid">
+              <label>Nama lengkap <span>*</span><input id="fullName" name="fullName" autocomplete="name" placeholder="Nama Anda" required></label>
+              <label>Email kerja <span>*</span><input id="email" name="email" type="email" autocomplete="email" placeholder="nama@perusahaan.com" required></label>
+              <label>Perusahaan / organisasi <small>Opsional</small><input id="company" name="company" autocomplete="organization" placeholder="Nama organisasi"></label>
+              <label>Peran Anda <small>Opsional</small><input id="role" name="role" placeholder="Contoh: Founder, HR Lead"></label>
+              <label class="full-width">Apa yang ingin dibahas? <span>*</span><textarea id="agenda" name="agenda" rows="3" placeholder="Ceritakan singkat konteks atau tujuan sesi..." required></textarea></label>
+            </div>
+            <label class="consent"><input type="checkbox" id="consent" required><span>Saya setuju data ini digunakan untuk mengatur dan menindaklanjuti sesi booking.</span></label>
+            <div id="captcha" class="captcha"></div>
+            <p class="form-error" id="formError" role="alert" hidden></p>
+            <button class="submit-btn" type="submit">Ajukan booking <span>↗</span></button>
+            <p class="form-footnote">Jadwal langsung terkonfirmasi setelah slot dipesan, tautan Zoom dibuat, dan email konfirmasi terkirim. Jika ada langkah yang gagal, Anda akan melihat pesan kesalahan dan slot tidak dipesan.</p>
+          </form>
+        </div>
+
+        <aside class="summary-card">
+          <div class="summary-top"><span class="summary-kicker">YOUR SESSION</span><span class="summary-mark">A.</span></div>
+          <div class="summary-title"><span id="summaryType">Coaching Session</span><h3 id="summaryHeading">Make room<br>for growth.</h3><p id="summaryDescription">Sesi terarah untuk membantu Anda menemukan perspektif dan langkah berikutnya.</p></div>
+          <div class="summary-divider"></div>
+          <div class="summary-row"><span class="summary-icon">◷</span><div><small>DURASI</small><strong id="summaryDuration">45 menit</strong></div></div>
+          <div class="summary-row"><span class="summary-icon">▦</span><div><small>TANGGAL & WAKTU</small><strong id="summaryDate">Belum dipilih</strong><span id="summaryTime">Pilih slot waktu</span></div></div>
+          <div class="summary-row"><span class="summary-icon">⌁</span><div><small>LOKASI</small><strong>Online via Zoom</strong><span>Link dikirim ke email Anda</span></div></div>
+          <div class="summary-note"><span>✳</span><p>Datang dengan satu pertanyaan penting. Kita mulai dari sana.</p></div>
+          <div class="summary-bottom"><span>AKSITAS</span><span>Clarity into action ↗</span></div>
+        </aside>
+      </div>
+    </section>
+
+    <section class="how-section" id="cara-kerja">
+      <div class="eyebrow"><span></span> SIMPLE BY DESIGN</div><h2>Jelas sejak <em>langkah pertama.</em></h2>
+      <div class="how-grid">
+        <article><span>01</span><h3>Pilih sesi</h3><p>Tentukan jenis layanan, tanggal, dan waktu yang cocok untuk Anda.</p></article>
+        <article><span>02</span><h3>Ceritakan kebutuhan</h3><p>Bagikan konteks singkat agar sesi lebih fokus dan relevan.</p></article>
+        <article><span>03</span><h3>Terima konfirmasi</h3><p>Konfirmasi dan tautan Zoom langsung dikirim ke email Anda.</p></article>
+      </div>
+    </section>
+    <section class="closing"><div><span class="closing-star">✳</span><h2>Perubahan besar<br>dimulai dari <em>percakapan.</em></h2></div><a href="#booking">Jadwalkan sesi <span>↗</span></a></section>
+  </main>
+  <footer><a class="footer-brand" href="#">AKSITAS<span>.</span></a><span>© <span id="year"></span> AKSITAS · Coaching & Consulting</span><a href="https://aksitas.github.io/" target="_blank" rel="noopener">Website utama ↗</a></footer>
+
+  <div class="success-modal" id="successModal" hidden role="dialog" aria-modal="true" aria-labelledby="successTitle">
+    <div class="success-box"><button class="modal-close" id="closeModal" aria-label="Tutup" type="button">×</button><div class="success-check">✓</div><div class="eyebrow"><span></span> NEXT STEP</div><h2 id="successTitle">Booking Anda<br><em>terkonfirmasi.</em></h2><p id="successText"></p><div class="modal-actions"><button class="text-btn" id="downloadIcs" type="button">Tambahkan ke kalender (.ics)</button></div><p class="modal-small">Tidak menerima email dalam 10 menit? Periksa folder spam, lalu balas ke tim AKSITAS dengan menyertakan ID booking Anda.</p></div>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>

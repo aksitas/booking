@@ -1,0 +1,4 @@
+project_id = "aksitas-booking"
+
+[functions.booking-api]
+verify_jwt = false
