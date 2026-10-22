@@ -109,6 +109,11 @@
     document.querySelectorAll(".service-card").forEach(b=>{const sel=b===btn;b.classList.toggle("selected",sel);b.setAttribute("aria-pressed",String(sel));});
     renderSummary();if(state.date)await renderTimes();
   }));
+  // "Pilih ..." buttons in the Layanan section preselect that service and jump to the booking form.
+  document.querySelectorAll("[data-pick]").forEach(btn=>btn.addEventListener("click",()=>{
+    document.querySelector(`.service-card[data-service="${btn.dataset.pick}"]`)?.click();
+    $("booking").scrollIntoView({behavior:"smooth",block:"start"});
+  }));
   $("prevMonth").addEventListener("click",()=>{if(!$("prevMonth").disabled){state.month=new Date(state.month.getFullYear(),state.month.getMonth()-1,1);renderCalendar();}});
   $("nextMonth").addEventListener("click",()=>{if(!$("nextMonth").disabled){state.month=new Date(state.month.getFullYear(),state.month.getMonth()+1,1);renderCalendar();}});
   function escapeHtml(value){return String(value??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
