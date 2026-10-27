@@ -10,7 +10,8 @@
   };
   const SERVICES = {
     coaching: { title:"Coaching Session", heading:"Make room <br>for growth.", description:"Sesi terarah untuk membantu Anda menemukan perspektif dan langkah berikutnya.", duration:45, price:"Rp300.000" },
-    consulting: { title:"Consulting Session", heading:"Find your <br>next direction.", description:"Diskusi strategis untuk mengurai tantangan dan merumuskan pendekatan yang lebih terarah.", duration:60, price:"Rp500.000" }
+    consulting: { title:"Consulting Session", heading:"Find your <br>next direction.", description:"Diskusi strategis untuk mengurai tantangan dan merumuskan pendekatan yang lebih terarah.", duration:60, price:"Rp500.000" },
+    diagnostic: { title:"AI Workflow & Skills Gap Mini-Diagnostic", heading:"From AI pilot <br>to real impact.", description:"Diagnostik terarah untuk memetakan perubahan workflow dan kesenjangan kompetensi akibat adopsi AI.", duration:60, price:"Rp500.000" }
   };
   const $ = id => document.getElementById(id);
   const state = { service:"coaching", month:new Date(), date:null, time:null, selectedSlot:null, slots:[], lastBooking:null, idemKey:null, captchaToken:"" };

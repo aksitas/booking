@@ -263,3 +263,18 @@ test("payment deadline is 1x24h after booking unless the session starts earlier"
   assert.equal(paymentDeadline(booked, new Date("2026-10-23T02:00:00Z")).toISOString(), "2026-10-23T02:00:00.000Z");
   assert.equal(waLink("+62 812-3456-7890", "hi"), "https://wa.me/6281234567890?text=hi");
 });
+
+test("AI Workflow & Skills Gap Mini-Diagnostic: 60 minutes, Rp500.000, bookable over HTTP", async () => {
+  const f = fakeDeps();
+  const res = await createBooking(f.deps, valid({ service: "diagnostic" }), KEY);
+  assert.equal(res.status, 201);
+  assert.equal(f.rows[0].service, "diagnostic");
+  assert.equal(f.rows[0].end_at, "2026-10-23T03:00:00.000Z"); // 60 min
+  const customer = f.sent.find((s) => s.to === "test@example.com")!;
+  assert.equal(customer.subject, "Booking terkonfirmasi — AKSITAS AI Workflow & Skills Gap Mini-Diagnostic");
+  assert.match(customer.text, /Biaya: Rp500\.000/);
+  const slots = await availableSlots(fakeDeps().deps, "2026-10-23", "diagnostic");
+  assert.equal(slots.at(-1)!.end, "2026-10-23T10:00:00.000Z"); // 16:00 start ends 17:00 WIB
+  // Prototype keys are not services.
+  assert.throws(() => validateBooking(valid({ service: "toString" }), NOW), PublicError);
+});

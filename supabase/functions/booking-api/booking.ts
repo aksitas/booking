@@ -5,10 +5,12 @@ export const TZ = "Asia/Jakarta";
 export const SERVICE = {
   coaching: { title: "Coaching", duration: 45, price: 300_000 },
   consulting: { title: "Consulting", duration: 60, price: 500_000 },
+  diagnostic: { title: "AI Workflow & Skills Gap Mini-Diagnostic", duration: 60, price: 500_000 },
 } as const;
 export type ServiceKey = keyof typeof SERVICE;
+export const isService = (s: unknown): s is ServiceKey => typeof s === "string" && Object.hasOwn(SERVICE, s);
 
-// Times are Asia/Jakarta minutes after midnight. Last start 16:00, consulting ends 17:00.
+// Times are Asia/Jakarta minutes after midnight. Last start 16:00; 60-minute services end 17:00.
 export const SLOT_STARTS = [9 * 60, 10 * 60, 11 * 60, 13 * 60, 14 * 60, 15 * 60, 16 * 60];
 export const MIN_LEAD_MS = 60 * 60 * 1000;
 export const MAX_AHEAD_MS = 60 * 24 * 60 * 60 * 1000;
@@ -153,7 +155,7 @@ function text(v: unknown, field: string, min: number, max: number, multiline = f
 export function validateBooking(body: any, now: Date) {
   if (!body || typeof body !== "object") throw new PublicError(400, "Body JSON tidak valid.", "invalid_input");
   const service = body.service;
-  if (service !== "coaching" && service !== "consulting") throw new PublicError(400, "Layanan tidak valid.", "invalid_service");
+  if (!isService(service)) throw new PublicError(400, "Layanan tidak valid.", "invalid_service");
   const full_name = text(body.fullName, "Nama", 2, 120);
   const email = text(body.email, "Email", 3, 254).toLowerCase();
   if (!/^[^\s@<>()",;:]+@[^\s@<>()",;:]+\.[a-z]{2,}$/i.test(email)) throw new PublicError(400, "Alamat email tidak valid.", "invalid_email");
@@ -384,7 +386,7 @@ export function createHandler(deps: Deps, extraRoutes?: ExtraRoutes) {
       if (req.method === "GET" && path.endsWith("/slots")) {
         if (!(await deps.rateLimit(`slots:${ipKey}`, 60, 30))) throw new PublicError(429, "Terlalu banyak permintaan. Coba lagi dalam satu menit.", "rate_limited");
         const date = url.searchParams.get("date") ?? "", service = url.searchParams.get("service") ?? "";
-        if (service !== "coaching" && service !== "consulting") throw new PublicError(400, "Layanan tidak valid.", "invalid_service");
+        if (!isService(service)) throw new PublicError(400, "Layanan tidak valid.", "invalid_service");
         return json({ date, service, timezone: TZ, slots: await availableSlots(deps, date, service) });
       }
       if (req.method === "POST" && path.endsWith("/book")) {

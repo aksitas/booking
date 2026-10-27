@@ -34,6 +34,7 @@ Apply the migrations in order (`supabase db push`, or paste each into SQL Editor
 3. `supabase/migrations/202610220003_google_meet.sql` (adds `meeting_url`)
 4. `supabase/migrations/202610220004_schedule_stale_cleanup.sql` (enables `pg_cron` and runs `expire_stale_bookings()` every 5 minutes)
 5. `supabase/migrations/202610220005_admin_fields.sql` (adds `paid_at`, `cancelled_at`, `cancellation_reason` for the admin page)
+6. `supabase/migrations/202610270006_diagnostic_service.sql` (adds the `diagnostic` value to the `booking_service` enum)
 
 The table includes a Postgres exclusion constraint over `tstzrange(start_at,end_at,'[)')`; two concurrent reservations cannot both occupy overlapping times while their status is `processing` or `confirmed`. RLS is enabled without public policies. The Edge Function uses the server-only service role.
 
@@ -56,7 +57,7 @@ No setup needed: the `calendar.events` scope from step 3 lets the function attac
 4. Test delivery to both customer and team. The code reports success only if the Gmail API accepts both messages; acceptance does not guarantee inbox placement.
 
 ## 5b. Pricing and payment
-Coaching costs Rp300.000 and Consulting Rp500.000 per session (`SERVICE` in `booking.ts`, `SERVICES` in `app.js`, and the Layanan section in `index.html`; keep them in sync). Bookings are still confirmed automatically; the confirmation email tells the client to transfer and send the proof via WhatsApp within 1x24 hours of booking (or before the session if that is sooner). Set `PAYMENT_BANK_NAME`, `PAYMENT_ACCOUNT_NUMBER`, `PAYMENT_ACCOUNT_HOLDER` and `PAYMENT_WHATSAPP` as Edge Function secrets; `/health` reports `payment: true` once all four are set. Unpaid bookings are not cancelled automatically: the team checks proofs and cancels manually.
+Coaching costs Rp300.000 (45 min), Consulting Rp500.000 (60 min) and AI Workflow & Skills Gap Mini-Diagnostic Rp500.000 (60 min) per session (`SERVICE` in `booking.ts`, `SERVICES` in `app.js`, and the Layanan section in `index.html`; keep them in sync). Bookings are still confirmed automatically; the confirmation email tells the client to transfer and send the proof via WhatsApp within 1x24 hours of booking (or before the session if that is sooner). Set `PAYMENT_BANK_NAME`, `PAYMENT_ACCOUNT_NUMBER`, `PAYMENT_ACCOUNT_HOLDER` and `PAYMENT_WHATSAPP` as Edge Function secrets; `/health` reports `payment: true` once all four are set. Unpaid bookings are not cancelled automatically: the team checks proofs and cancels manually.
 
 ## 5c. Admin page
 `admin.html` (e.g. https://aksitas.github.io/booking/admin.html, not indexed) lists bookings, marks payments as received and cancels bookings (deletes the Calendar event and can email the client). Set an `ADMIN_PASSWORD` Edge Function secret of at least 12 characters; without it every admin endpoint answers 503. Login is rate limited to 5 tries per 15 minutes per IP and returns an HMAC-signed session token valid for 8 hours; changing `ADMIN_PASSWORD` signs every session out. The function now has three files: `index.ts`, `booking.ts`, `admin.ts`.
